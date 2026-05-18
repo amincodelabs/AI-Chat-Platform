@@ -1,3 +1,4 @@
+using PrivateAiChat.Application.Chat;
 using PrivateAiChat.Contracts.Conversations;
 using PrivateAiChat.Domain.Conversations;
 using PrivateAiChat.Domain.Messages;
@@ -7,10 +8,14 @@ namespace PrivateAiChat.Application.Conversations;
 public sealed class ConversationService : IConversationService
 {
     private readonly IConversationRepository _repository;
+    private readonly IChatCompletionService _chatCompletionService;
 
-    public ConversationService(IConversationRepository repository)
+    public ConversationService(
+        IConversationRepository repository,
+        IChatCompletionService chatCompletionService)
     {
         _repository = repository;
+        _chatCompletionService = chatCompletionService;
     }
 
     public async Task<ConversationSummaryResponse> CreateConversationAsync(
@@ -71,13 +76,13 @@ public sealed class ConversationService : IConversationService
         return true;
     }
 
-    public async Task<MessageResponse?> AddMessageAsync(
+    public async Task<AddMessageResponse?> AddMessageAsync(
         Guid userId,
         Guid conversationId,
         AddMessageRequest request,
         CancellationToken cancellationToken)
     {
-        var conversation = await _repository.GetUserConversationAsync(
+        var conversation = await _repository.GetUserConversationWithMessagesAsync(
             userId,
             conversationId,
             cancellationToken);
@@ -93,7 +98,22 @@ public sealed class ConversationService : IConversationService
         await _repository.AddMessageAsync(message, cancellationToken);
         await _repository.SaveChangesAsync(cancellationToken);
 
-        return ToMessageResponse(message);
+        var history = conversation.Messages
+            .OrderBy(existingMessage => existingMessage.CreatedAt)
+            .Append(message)
+            .Select(ToChatCompletionMessage)
+            .ToArray();
+
+        var assistantContent = await _chatCompletionService.CompleteAsync(history, cancellationToken);
+        var assistantMessage = new Message(conversation.Id, MessageRole.Assistant, assistantContent);
+        conversation.Touch();
+
+        await _repository.AddMessageAsync(assistantMessage, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return new AddMessageResponse(
+            ToMessageResponse(message),
+            ToMessageResponse(assistantMessage));
     }
 
     private static ConversationSummaryResponse ToSummaryResponse(Conversation conversation) =>
@@ -120,4 +140,9 @@ public sealed class ConversationService : IConversationService
             message.Role.ToString(),
             message.Content,
             message.CreatedAt);
+
+    private static ChatCompletionMessage ToChatCompletionMessage(Message message) =>
+        new(
+            message.Role.ToString().ToLowerInvariant(),
+            message.Content);
 }

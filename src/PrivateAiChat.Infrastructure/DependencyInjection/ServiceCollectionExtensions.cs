@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PrivateAiChat.Application.Chat;
 using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Domain.Users;
+using PrivateAiChat.Infrastructure.Chat;
 using PrivateAiChat.Infrastructure.Persistence;
 using PrivateAiChat.Infrastructure.Persistence.Repositories;
 
@@ -28,6 +30,16 @@ public static class ServiceCollectionExtensions
             }));
 
         services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.Configure<OllamaOptions>(configuration.GetSection(OllamaOptions.SectionName));
+        services.AddHttpClient<IChatCompletionService, OllamaChatCompletionService>((serviceProvider, client) =>
+        {
+            var options = serviceProvider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptions<OllamaOptions>>()
+                .Value;
+
+            client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
 
         services
             .AddIdentity<User, IdentityRole<Guid>>(options =>

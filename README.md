@@ -76,6 +76,32 @@ curl -b cookies.txt -X POST https://localhost:7078/api/conversations \
 curl -b cookies.txt https://localhost:7078/api/conversations
 ```
 
+Posting a message now saves both the user message and an assistant reply from Ollama:
+
+```bash
+curl -b cookies.txt -X POST https://localhost:7078/api/conversations/{conversationId}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Give me a one sentence project status update."}'
+```
+
+## Ollama
+
+The API reads Ollama settings from `src/PrivateAiChat.Api/appsettings*.json`:
+
+```json
+"Ollama": {
+  "BaseUrl": "http://localhost:11434",
+  "Model": "llama3.2"
+}
+```
+
+Local setup:
+
+```bash
+ollama serve
+ollama pull llama3.2
+```
+
 ## Blazor Web
 
 Run the API first:

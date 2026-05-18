@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using PrivateAiChat.Application.Chat;
 using Microsoft.AspNetCore.Identity;
 using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Application.DependencyInjection;
@@ -196,13 +197,23 @@ conversations.MapPost("/{id:guid}/messages", async (
         return Results.ValidationProblem(validationErrors);
     }
 
-    var message = await conversationService.AddMessageAsync(
-        userId,
-        id,
-        request,
-        cancellationToken);
+    try
+    {
+        var messages = await conversationService.AddMessageAsync(
+            userId,
+            id,
+            request,
+            cancellationToken);
 
-    return message is null ? Results.NotFound() : Results.Ok(message);
+        return messages is null ? Results.NotFound() : Results.Ok(messages);
+    }
+    catch (ChatCompletionException exception)
+    {
+        return Results.Problem(
+            title: "Chat completion failed.",
+            detail: exception.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 
 app.MapGet("/health", async (AppDbContext dbContext, CancellationToken cancellationToken) =>

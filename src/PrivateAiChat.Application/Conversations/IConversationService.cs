@@ -23,7 +23,7 @@ public interface IConversationService
         Guid conversationId,
         CancellationToken cancellationToken);
 
-    Task<MessageResponse?> AddMessageAsync(
+    Task<AddMessageResponse?> AddMessageAsync(
         Guid userId,
         Guid conversationId,
         AddMessageRequest request,
