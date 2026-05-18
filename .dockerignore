@@ -1,0 +1,15 @@
+.git
+.github
+.vs
+.vscode
+**/bin
+**/obj
+**/.user
+**/*.suo
+**/*.user
+Dockerfile
+docker-compose*.yml
+.env
+.env.*
+!.env.example
+README.md

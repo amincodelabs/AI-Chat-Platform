@@ -30,6 +30,21 @@ public static class ServiceCollectionExtensions
             }));
 
         services.AddScoped<IConversationRepository, ConversationRepository>();
+
+        var redisConnectionString = configuration.GetConnectionString("Redis");
+        if (string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            services.AddDistributedMemoryCache();
+        }
+        else
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnectionString;
+                options.InstanceName = "PrivateAiChat:";
+            });
+        }
+
         services.Configure<OllamaOptions>(configuration.GetSection(OllamaOptions.SectionName));
         services.AddHttpClient<IChatCompletionService, OllamaChatCompletionService>((serviceProvider, client) =>
         {
@@ -64,7 +79,7 @@ public static class ServiceCollectionExtensions
             options.Cookie.Name = "PrivateAiChat.Auth";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = GetCookieSecurePolicy(configuration);
             options.SlidingExpiration = true;
             options.ExpireTimeSpan = TimeSpan.FromDays(14);
             options.Events = new CookieAuthenticationEvents
@@ -83,5 +98,13 @@ public static class ServiceCollectionExtensions
         });
 
         return services;
+    }
+
+    private static CookieSecurePolicy GetCookieSecurePolicy(IConfiguration configuration)
+    {
+        var configuredPolicy = configuration["Authentication:CookieSecurePolicy"];
+        return Enum.TryParse<CookieSecurePolicy>(configuredPolicy, ignoreCase: true, out var policy)
+            ? policy
+            : CookieSecurePolicy.Always;
     }
 }

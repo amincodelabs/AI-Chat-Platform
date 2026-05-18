@@ -1,0 +1,105 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/PrivateAiChat.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Authentication__CookieSecurePolicy: SameAsRequest
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
+      ConnectionStrings__Redis: redis:6379
+      Database__ApplyMigrations: "true"
+      Ollama__BaseUrl: http://ollama:11434
+      Ollama__Model: ${OLLAMA_MODEL:-llama3.2}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    ports:
+      - "${PRIVATEAICHAT_API_PORT:-5081}:8080"
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: src/PrivateAiChat.Web/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Api__BaseUrl: http://api:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${PRIVATEAICHAT_WEB_PORT:-5080}:8080"
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    ports:
+      - "127.0.0.1:${PRIVATEAICHAT_SQL_PORT:-14333}:1433"
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/1433'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:0.5.7
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+networks:
+  privateaichat:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
+  ollama-models:
