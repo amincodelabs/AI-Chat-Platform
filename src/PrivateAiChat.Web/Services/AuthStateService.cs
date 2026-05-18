@@ -30,17 +30,24 @@ public sealed class AuthStateService
             return;
         }
 
-        var payload = await _jsRuntime.InvokeAsync<string?>("privateAiChatState.get", StorageKey);
-        if (!string.IsNullOrWhiteSpace(payload))
+        try
         {
-            try
+            var payload = await _jsRuntime.InvokeAsync<string?>("privateAiChatState.get", StorageKey);
+            if (!string.IsNullOrWhiteSpace(payload))
             {
-                CurrentUser = JsonSerializer.Deserialize<AuthResponse>(payload);
+                try
+                {
+                    CurrentUser = JsonSerializer.Deserialize<AuthResponse>(payload);
+                }
+                catch (JsonException)
+                {
+                    CurrentUser = null;
+                }
             }
-            catch (JsonException)
-            {
-                CurrentUser = null;
-            }
+        }
+        catch
+        {
+            CurrentUser = null;
         }
 
         IsInitialized = true;
@@ -51,10 +58,16 @@ public sealed class AuthStateService
     {
         CurrentUser = user;
         IsInitialized = true;
-        await _jsRuntime.InvokeVoidAsync(
-            "privateAiChatState.set",
-            StorageKey,
-            JsonSerializer.Serialize(user));
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync(
+                "privateAiChatState.set",
+                StorageKey,
+                JsonSerializer.Serialize(user));
+        }
+        catch
+        {
+        }
         Changed?.Invoke();
     }
 
@@ -62,7 +75,13 @@ public sealed class AuthStateService
     {
         CurrentUser = null;
         IsInitialized = true;
-        await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+        }
+        catch
+        {
+        }
         Changed?.Invoke();
     }
 }

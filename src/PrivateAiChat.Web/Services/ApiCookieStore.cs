@@ -27,7 +27,14 @@ public sealed class ApiCookieStore
             return;
         }
 
-        _cookieHeader = await _jsRuntime.InvokeAsync<string?>("privateAiChatState.get", StorageKey);
+        try
+        {
+            _cookieHeader = await _jsRuntime.InvokeAsync<string?>("privateAiChatState.get", StorageKey);
+        }
+        catch
+        {
+            _cookieHeader = null;
+        }
         IsInitialized = true;
     }
 
@@ -73,17 +80,35 @@ public sealed class ApiCookieStore
 
         if (string.IsNullOrWhiteSpace(_cookieHeader))
         {
-            await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+            try
+            {
+                await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+            }
+            catch
+            {
+            }
             return;
         }
 
-        await _jsRuntime.InvokeVoidAsync("privateAiChatState.set", StorageKey, _cookieHeader);
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("privateAiChatState.set", StorageKey, _cookieHeader);
+        }
+        catch
+        {
+        }
     }
 
     public async Task ClearAsync()
     {
         _cookieHeader = null;
         IsInitialized = true;
-        await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("privateAiChatState.remove", StorageKey);
+        }
+        catch
+        {
+        }
     }
 }

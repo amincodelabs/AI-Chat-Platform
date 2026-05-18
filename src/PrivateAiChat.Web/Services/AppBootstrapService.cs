@@ -25,9 +25,19 @@ public sealed class AppBootstrapService
             return;
         }
 
-        await _themeService.InitializeAsync();
-        await _cookieStore.InitializeAsync();
-        await _authStateService.InitializeAsync();
-        IsInitialized = true;
+        try
+        {
+            await _themeService.InitializeAsync();
+            await _cookieStore.InitializeAsync();
+            await _authStateService.InitializeAsync();
+        }
+        catch
+        {
+            // Fail open so a browser storage or JS issue does not block the app shell.
+        }
+        finally
+        {
+            IsInitialized = true;
+        }
     }
 }
