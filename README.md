@@ -65,16 +65,35 @@ Conversation endpoints require an authenticated cookie.
 Example local flow:
 
 ```bash
-curl -c cookies.txt -X POST https://localhost:7000/auth/login \
+curl -c cookies.txt -X POST https://localhost:7078/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"Password1"}'
 
-curl -b cookies.txt -X POST https://localhost:7000/api/conversations \
+curl -b cookies.txt -X POST https://localhost:7078/api/conversations \
   -H "Content-Type: application/json" \
   -d '{"title":"First chat"}'
 
-curl -b cookies.txt https://localhost:7000/api/conversations
+curl -b cookies.txt https://localhost:7078/api/conversations
 ```
+
+## Blazor Web
+
+Run the API first:
+
+```bash
+dotnet run --project src/PrivateAiChat.Api --launch-profile https
+```
+
+Then run the Blazor Web app:
+
+```bash
+dotnet run --project src/PrivateAiChat.Web --launch-profile https
+```
+
+Open `https://localhost:7135/login` or `https://localhost:7135/signup`.
+
+The Blazor app reads its backend URL from `Api:BaseUrl` in `src/PrivateAiChat.Web/appsettings*.json`.
+The default local API URL is `https://localhost:7078`.
 
 ## Migration
 

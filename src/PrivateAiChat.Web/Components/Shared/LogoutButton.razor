@@ -1,0 +1,35 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject AuthApiClient AuthApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+@if (AuthState.IsAuthenticated)
+{
+    <button class="shell-link shell-link--button" type="button" @onclick="LogoutAsync" disabled="@isLoading">
+        @(isLoading ? "Signing out" : "Logout")
+    </button>
+}
+
+@code {
+    private bool isLoading;
+
+    protected override void OnInitialized()
+    {
+        AuthState.Changed += StateHasChanged;
+    }
+
+    private async Task LogoutAsync()
+    {
+        isLoading = true;
+        await AuthApiClient.LogoutAsync(CancellationToken.None);
+        AuthState.Clear();
+        isLoading = false;
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        AuthState.Changed -= StateHasChanged;
+    }
+}

@@ -1,0 +1,23 @@
+<section class="auth-card">
+    <div class="auth-card__header">
+        <p class="eyebrow">@Eyebrow</p>
+        <h1>@Title</h1>
+        <p>@Subtitle</p>
+    </div>
+
+    @ChildContent
+</section>
+
+@code {
+    [Parameter]
+    public string Eyebrow { get; set; } = "PrivateAiChat";
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Subtitle { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
