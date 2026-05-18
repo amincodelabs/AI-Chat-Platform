@@ -3,11 +3,12 @@
 @using System.ComponentModel.DataAnnotations
 @using PrivateAiChat.Contracts.Auth
 @inject AuthApiClient AuthApiClient
+@inject ApiCookieStore ApiCookieStore
 @inject AuthStateService AuthState
 @inject NavigationManager Navigation
 
 <div class="auth-page">
-    <AuthCard Title="Create your account" Subtitle="Start with a private account and add conversations later.">
+    <AuthCard Eyebrow="Private workspace" Title="Create your account" Subtitle="Start with a private account and add conversations later.">
         <EditForm Model="model" OnValidSubmit="SubmitAsync" class="auth-form">
             <DataAnnotationsValidator />
 
@@ -48,6 +49,14 @@
     private bool isLoading;
     private string? errorMessage;
 
+    protected override void OnInitialized()
+    {
+        if (AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/chat", replace: true);
+        }
+    }
+
     private async Task SubmitAsync()
     {
         isLoading = true;
@@ -59,8 +68,9 @@
 
         if (result.Succeeded && result.Value is not null)
         {
-            AuthState.SetUser(result.Value);
-            Navigation.NavigateTo("/");
+            await AuthState.SetUserAsync(result.Value);
+            await ApiCookieStore.PersistAsync();
+            Navigation.NavigateTo("/chat", replace: true);
             return;
         }
 
@@ -78,6 +88,7 @@
         [Required]
         [MinLength(8)]
         [MaxLength(128)]
+        [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$", ErrorMessage = "Password must include uppercase, lowercase, and a digit.")]
         public string Password { get; set; } = string.Empty;
 
         [Required]

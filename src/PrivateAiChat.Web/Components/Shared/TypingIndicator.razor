@@ -1,0 +1,13 @@
+<div class="typing-indicator" aria-label="@Label">
+    <span class="typing-indicator__label">@Label</span>
+    <span class="typing-indicator__dots" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+    </span>
+</div>
+
+@code {
+    [Parameter]
+    public string Label { get; set; } = "Thinking";
+}

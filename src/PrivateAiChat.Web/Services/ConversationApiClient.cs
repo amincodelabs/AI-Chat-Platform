@@ -13,10 +13,12 @@ public sealed class ConversationApiClient : IDisposable
     public ConversationApiClient(IOptions<ApiClientOptions> options, ApiCookieStore cookieStore)
     {
         var apiBaseUrl = new Uri(options.Value.BaseUrl, UriKind.Absolute);
-        var handler = new HttpClientHandler
+        var handler = new ApiCookieHandler(cookieStore)
         {
-            CookieContainer = cookieStore.Cookies,
-            UseCookies = true
+            InnerHandler = new HttpClientHandler
+            {
+                UseCookies = false
+            }
         };
 
         _httpClient = new HttpClient(handler)

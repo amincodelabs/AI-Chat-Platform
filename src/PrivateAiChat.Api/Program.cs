@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Security.Claims;
 using PrivateAiChat.Application.Chat;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -19,6 +21,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
+
+var dataProtectionKeysPath = "/home/app/.aspnet/DataProtection-Keys";
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("PrivateAiChat");
 
 var app = builder.Build();
 

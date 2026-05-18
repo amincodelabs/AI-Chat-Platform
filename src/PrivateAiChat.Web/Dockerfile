@@ -2,6 +2,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
+RUN mkdir -p /home/app/.aspnet/DataProtection-Keys && chown -R app:app /home/app/.aspnet
+
 USER app
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build

@@ -1,3 +1,5 @@
+using System.IO;
+using Microsoft.AspNetCore.DataProtection;
 using PrivateAiChat.Web.Components;
 using PrivateAiChat.Web.Services;
 
@@ -8,10 +10,18 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<ApiClientOptions>(builder.Configuration.GetSection(ApiClientOptions.SectionName));
 builder.Services.AddScoped<ApiCookieStore>();
+builder.Services.AddScoped<AppBootstrapService>();
 builder.Services.AddScoped<AuthApiClient>();
 builder.Services.AddScoped<ConversationApiClient>();
 builder.Services.AddScoped<AuthStateService>();
 builder.Services.AddScoped<ThemeService>();
+
+var dataProtectionKeysPath = "/home/app/.aspnet/DataProtection-Keys";
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("PrivateAiChat");
 
 var app = builder.Build();
 

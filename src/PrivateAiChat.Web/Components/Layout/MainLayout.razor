@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject AppBootstrapService AppBootstrap
 
 <div class="app-shell">
     <header class="app-header">
@@ -7,18 +8,29 @@
             <span>PrivateAiChat</span>
         </a>
 
-        <nav class="shell-nav" aria-label="Primary">
-            <NavLink class="shell-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-            <NavLink class="shell-link" href="chat">Chat</NavLink>
-            <NavLink class="shell-link" href="login">Login</NavLink>
-            <NavLink class="shell-link" href="signup">Signup</NavLink>
-            <LogoutButton />
+        <div class="shell-actions">
             <ThemeToggle />
-        </nav>
+            <LogoutButton />
+        </div>
     </header>
 
     <main class="app-main">
-        @Body
+        @if (!AppBootstrap.IsInitialized)
+        {
+            <section class="app-loading">
+                <p class="eyebrow">Loading</p>
+                <h1>Preparing your workspace</h1>
+                <div class="typing-indicator typing-indicator--center" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </section>
+        }
+        else
+        {
+            @Body
+        }
     </main>
 </div>
 
@@ -27,3 +39,16 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">x</span>
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AppBootstrap.InitializeAsync();
+        StateHasChanged();
+    }
+}
