@@ -1,0 +1,327 @@
+@page "/chat"
+@rendermode InteractiveServer
+@implements IDisposable
+@using PrivateAiChat.Contracts.Conversations
+@inject ConversationApiClient ConversationApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+
+<section class="chat-page">
+    <aside class="chat-sidebar" aria-label="Conversations">
+        <div class="chat-sidebar__header">
+            <div>
+                <p class="eyebrow">Workspace</p>
+                <h1>Chat</h1>
+            </div>
+            <button class="primary-button chat-new-button" type="button" @onclick="CreateConversationAsync" disabled="@isCreatingConversation">
+                @(isCreatingConversation ? "Creating" : "New")
+            </button>
+        </div>
+
+        @if (isLoadingConversations)
+        {
+            <div class="state-block">Loading conversations...</div>
+        }
+        else if (!string.IsNullOrWhiteSpace(conversationError))
+        {
+            <div class="form-alert">@conversationError</div>
+        }
+        else if (conversations.Count == 0)
+        {
+            <div class="state-block">Start with a new conversation.</div>
+        }
+        else
+        {
+            <div class="conversation-list">
+                @foreach (var conversation in conversations)
+                {
+                    <ConversationListItem Conversation="conversation"
+                                          IsSelected="conversation.Id == selectedConversationId"
+                                          OnSelected="() => SelectConversationAsync(conversation.Id)" />
+                }
+            </div>
+        }
+    </aside>
+
+    <section class="chat-panel" aria-label="Selected conversation">
+        @if (isLoadingConversation)
+        {
+            <div class="chat-empty">
+                <p class="eyebrow">Loading</p>
+                <h2>Opening conversation</h2>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(messageError))
+        {
+            <div class="chat-empty">
+                <p class="eyebrow">Error</p>
+                <h2>@messageError</h2>
+            </div>
+        }
+        else if (selectedConversation is null)
+        {
+            <div class="chat-empty">
+                <p class="eyebrow">Private AI</p>
+                <h2>Select a conversation or create a new one.</h2>
+            </div>
+        }
+        else
+        {
+            <header class="chat-panel__header">
+                <div>
+                    <p class="eyebrow">Conversation</p>
+                    <h2>@GetTitle(selectedConversation.Title)</h2>
+                </div>
+                <button class="danger-button" type="button" @onclick="DeleteSelectedConversationAsync" disabled="@isDeletingConversation">
+                    @(isDeletingConversation ? "Deleting" : "Delete")
+                </button>
+            </header>
+
+            <div class="message-list" aria-live="polite">
+                @if (messages.Count == 0)
+                {
+                    <div class="chat-empty chat-empty--compact">
+                        <p class="eyebrow">No messages</p>
+                        <h2>Ask the first question.</h2>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in messages)
+                    {
+                        <ChatMessageBubble Message="message" />
+                    }
+                }
+
+                @if (isSendingMessage)
+                {
+                    <article class="message-bubble message-bubble--assistant message-bubble--loading">
+                        <div class="message-bubble__meta">
+                            <span>Assistant</span>
+                            <time>Thinking</time>
+                        </div>
+                        <p>Preparing a response...</p>
+                    </article>
+                }
+            </div>
+
+            <EditForm Model="messageModel" OnValidSubmit="SendMessageAsync" class="message-composer">
+                <DataAnnotationsValidator />
+                <InputTextArea class="message-input"
+                               placeholder="Write a message..."
+                               @bind-Value="messageModel.Content"
+                               disabled="@isSendingMessage" />
+                <ValidationMessage For="() => messageModel.Content" />
+                <button class="primary-button message-send-button" type="submit" disabled="@isSendingMessage">
+                    @(isSendingMessage ? "Sending" : "Send")
+                </button>
+            </EditForm>
+        }
+    </section>
+</section>
+
+@code {
+    private readonly CancellationTokenSource cancellationTokenSource = new();
+    private readonly MessageFormModel messageModel = new();
+    private readonly List<ConversationSummaryResponse> conversations = [];
+    private readonly List<MessageResponse> messages = [];
+    private ConversationDetailsResponse? selectedConversation;
+    private Guid? selectedConversationId;
+    private bool isLoadingConversations;
+    private bool isLoadingConversation;
+    private bool isCreatingConversation;
+    private bool isDeletingConversation;
+    private bool isSendingMessage;
+    private bool shouldRedirectToLogin;
+    private string? conversationError;
+    private string? messageError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            shouldRedirectToLogin = true;
+            return;
+        }
+
+        await LoadConversationsAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && shouldRedirectToLogin)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private async Task LoadConversationsAsync()
+    {
+        isLoadingConversations = true;
+        conversationError = null;
+
+        var result = await ConversationApiClient.GetConversationsAsync(cancellationTokenSource.Token);
+        if (result.Succeeded && result.Value is not null)
+        {
+            conversations.Clear();
+            conversations.AddRange(result.Value.OrderByDescending(conversation => conversation.UpdatedAt));
+        }
+        else
+        {
+            HandleApiError(result.Error, isConversationError: true);
+        }
+
+        isLoadingConversations = false;
+    }
+
+    private async Task CreateConversationAsync()
+    {
+        isCreatingConversation = true;
+        conversationError = null;
+
+        var result = await ConversationApiClient.CreateConversationAsync(
+            new CreateConversationRequest("New conversation"),
+            cancellationTokenSource.Token);
+
+        if (result.Succeeded && result.Value is not null)
+        {
+            conversations.Insert(0, result.Value);
+            await SelectConversationAsync(result.Value.Id);
+        }
+        else
+        {
+            HandleApiError(result.Error, isConversationError: true);
+        }
+
+        isCreatingConversation = false;
+    }
+
+    private async Task SelectConversationAsync(Guid conversationId)
+    {
+        selectedConversationId = conversationId;
+        selectedConversation = null;
+        messages.Clear();
+        messageError = null;
+        isLoadingConversation = true;
+
+        var result = await ConversationApiClient.GetConversationAsync(conversationId, cancellationTokenSource.Token);
+        if (result.Succeeded && result.Value is not null)
+        {
+            selectedConversation = result.Value;
+            messages.AddRange(result.Value.Messages.OrderBy(message => message.CreatedAt));
+        }
+        else
+        {
+            HandleApiError(result.Error, isConversationError: false);
+        }
+
+        isLoadingConversation = false;
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (selectedConversationId is null || string.IsNullOrWhiteSpace(messageModel.Content))
+        {
+            return;
+        }
+
+        isSendingMessage = true;
+        messageError = null;
+        var content = messageModel.Content.Trim();
+
+        var result = await ConversationApiClient.AddMessageAsync(
+            selectedConversationId.Value,
+            new AddMessageRequest(content),
+            cancellationTokenSource.Token);
+
+        if (result.Succeeded && result.Value is not null)
+        {
+            messages.Add(result.Value.UserMessage);
+            messages.Add(result.Value.AssistantMessage);
+            messageModel.Content = string.Empty;
+            await LoadConversationsAsync();
+        }
+        else
+        {
+            HandleApiError(result.Error, isConversationError: false);
+        }
+
+        isSendingMessage = false;
+    }
+
+    private async Task DeleteSelectedConversationAsync()
+    {
+        if (selectedConversationId is null)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            cancellationTokenSource.Token,
+            "Delete this conversation?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        isDeletingConversation = true;
+        messageError = null;
+
+        var result = await ConversationApiClient.DeleteConversationAsync(
+            selectedConversationId.Value,
+            cancellationTokenSource.Token);
+
+        if (result.Succeeded)
+        {
+            conversations.RemoveAll(conversation => conversation.Id == selectedConversationId.Value);
+            selectedConversation = null;
+            selectedConversationId = null;
+            messages.Clear();
+        }
+        else
+        {
+            HandleApiError(result.Error, isConversationError: false);
+        }
+
+        isDeletingConversation = false;
+    }
+
+    private void HandleApiError(string? error, bool isConversationError)
+    {
+        var message = error ?? "The request could not be completed.";
+        if (message == "Authentication is required.")
+        {
+            AuthState.Clear();
+            shouldRedirectToLogin = true;
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (isConversationError)
+        {
+            conversationError = message;
+            return;
+        }
+
+        messageError = message;
+    }
+
+    private static string GetTitle(string? title) =>
+        string.IsNullOrWhiteSpace(title) ? "Untitled conversation" : title;
+
+    public void Dispose()
+    {
+        cancellationTokenSource.Cancel();
+        cancellationTokenSource.Dispose();
+    }
+
+    private sealed class MessageFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MaxLength(16000)]
+        public string Content { get; set; } = string.Empty;
+    }
+}
