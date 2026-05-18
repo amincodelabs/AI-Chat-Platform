@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using PrivateAiChat.Application.Chat;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Application.DependencyInjection;
 using PrivateAiChat.Contracts.Auth;
@@ -19,6 +21,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+if (builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -216,14 +225,19 @@ conversations.MapPost("/{id:guid}/messages", async (
     }
 });
 
-app.MapGet("/health", async (AppDbContext dbContext, CancellationToken cancellationToken) =>
+app.MapGet("/health", async (
+    AppDbContext dbContext,
+    IDistributedCache distributedCache,
+    CancellationToken cancellationToken) =>
 {
     var databaseConnected = await dbContext.Database.CanConnectAsync(cancellationToken);
+    var cacheConnected = await CanUseCacheAsync(distributedCache, cancellationToken);
 
     return Results.Ok(new
     {
-        status = databaseConnected ? "Healthy" : "Degraded",
-        database = databaseConnected ? "Connected" : "Unavailable"
+        status = databaseConnected && cacheConnected ? "Healthy" : "Degraded",
+        database = databaseConnected ? "Connected" : "Unavailable",
+        cache = cacheConnected ? "Connected" : "Unavailable"
     });
 });
 
@@ -268,3 +282,27 @@ static Dictionary<string, string[]> ToValidationErrors(IdentityResult result) =>
         .ToDictionary(
             group => group.Key,
             group => group.Select(error => error.Description).ToArray());
+
+static async Task<bool> CanUseCacheAsync(
+    IDistributedCache distributedCache,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        var key = $"health:{Guid.NewGuid():N}";
+        await distributedCache.SetStringAsync(
+            key,
+            "ok",
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10)
+            },
+            cancellationToken);
+
+        return await distributedCache.GetStringAsync(key, cancellationToken) == "ok";
+    }
+    catch
+    {
+        return false;
+    }
+}

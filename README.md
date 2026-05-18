@@ -118,6 +118,60 @@ dotnet run --project src/PrivateAiChat.Web --launch-profile https
 
 Open `https://localhost:7135/login` or `https://localhost:7135/signup`.
 
+## Local Docker
+
+The local Docker setup runs:
+
+- API
+- Blazor Web
+- SQL Server
+- Redis
+- Ollama
+
+Copy the sample environment file if you want to override local ports or secrets:
+
+```bash
+cp .env.example .env
+```
+
+Start the stack:
+
+```bash
+docker compose up --build
+```
+
+Open the Blazor app:
+
+```text
+http://localhost:5080
+```
+
+The API is available for local debugging at:
+
+```text
+http://localhost:5081
+```
+
+SQL Server is bound to localhost only on port `14333` by default. Redis and Ollama are only available inside the Docker network. The API applies EF Core migrations automatically in Docker because `Database__ApplyMigrations=true` is set by `docker-compose.yml`.
+
+Pull the configured Ollama model into the persistent Ollama volume:
+
+```bash
+docker compose exec ollama ollama pull llama3.2:1b
+```
+
+The Docker default uses `llama3.2:1b` so the full stack can run more comfortably on local development machines. Override `OLLAMA_MODEL` in `.env` if you want a larger model and have enough Docker memory available.
+
+For local Docker, the API receives these container-specific settings from `docker-compose.yml`:
+
+```text
+ConnectionStrings__DefaultConnection=Server=sqlserver,1433;...
+ConnectionStrings__Redis=redis:6379
+Database__ApplyMigrations=true
+Ollama__BaseUrl=http://ollama:11434
+Authentication__CookieSecurePolicy=SameAsRequest
+```
+
 The Blazor app reads its backend URL from `Api:BaseUrl` in `src/PrivateAiChat.Web/appsettings*.json`.
 The default local API URL is `https://localhost:7078`.
 
