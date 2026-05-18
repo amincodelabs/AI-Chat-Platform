@@ -1,6 +1,10 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
+using PrivateAiChat.Application.Conversations;
+using PrivateAiChat.Application.DependencyInjection;
 using PrivateAiChat.Contracts.Auth;
+using PrivateAiChat.Contracts.Conversations;
 using PrivateAiChat.Domain.Users;
 using PrivateAiChat.Infrastructure.DependencyInjection;
 using PrivateAiChat.Infrastructure.Persistence;
@@ -9,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddOpenApi();
+builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
 
@@ -92,6 +97,114 @@ app.MapPost("/auth/logout", async (SignInManager<User> signInManager) =>
 })
 .RequireAuthorization();
 
+var conversations = app.MapGroup("/api/conversations")
+    .RequireAuthorization();
+
+conversations.MapPost("/", async (
+    CreateConversationRequest request,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (!TryValidate(request, out var validationErrors))
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    var conversation = await conversationService.CreateConversationAsync(
+        userId,
+        request,
+        cancellationToken);
+
+    return Results.Created($"/api/conversations/{conversation.Id}", conversation);
+});
+
+conversations.MapGet("/", async (
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var userConversations = await conversationService.GetUserConversationsAsync(
+        userId,
+        cancellationToken);
+
+    return Results.Ok(userConversations);
+});
+
+conversations.MapGet("/{id:guid}", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var conversation = await conversationService.GetConversationDetailsAsync(
+        userId,
+        id,
+        cancellationToken);
+
+    return conversation is null ? Results.NotFound() : Results.Ok(conversation);
+});
+
+conversations.MapDelete("/{id:guid}", async (
+    Guid id,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var deleted = await conversationService.DeleteConversationAsync(
+        userId,
+        id,
+        cancellationToken);
+
+    return deleted ? Results.NoContent() : Results.NotFound();
+});
+
+conversations.MapPost("/{id:guid}/messages", async (
+    Guid id,
+    AddMessageRequest request,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (!TryValidate(request, out var validationErrors))
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    var message = await conversationService.AddMessageAsync(
+        userId,
+        id,
+        request,
+        cancellationToken);
+
+    return message is null ? Results.NotFound() : Results.Ok(message);
+});
+
 app.MapGet("/health", async (AppDbContext dbContext, CancellationToken cancellationToken) =>
 {
     var databaseConnected = await dbContext.Database.CanConnectAsync(cancellationToken);
@@ -110,6 +223,12 @@ static AuthResponse ToAuthResponse(User user) =>
         user.Id,
         user.Email ?? string.Empty,
         user.DisplayName);
+
+static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
+{
+    var userIdValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+    return Guid.TryParse(userIdValue, out userId);
+}
 
 static bool TryValidate<TRequest>(
     TRequest request,

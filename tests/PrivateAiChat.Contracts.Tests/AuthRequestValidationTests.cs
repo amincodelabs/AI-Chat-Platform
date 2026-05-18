@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using PrivateAiChat.Contracts.Auth;
+using PrivateAiChat.Contracts.Conversations;
 using Xunit;
 
 namespace PrivateAiChat.Contracts.Tests;
@@ -34,6 +35,16 @@ public sealed class AuthRequestValidationTests
         var results = Validate(request);
 
         Assert.Empty(results);
+    }
+
+    [Fact]
+    public void AddMessageRequest_Requires_Content()
+    {
+        var request = new AddMessageRequest("");
+
+        var results = Validate(request);
+
+        Assert.Contains(results, result => result.MemberNames.Contains(nameof(AddMessageRequest.Content)));
     }
 
     private static List<ValidationResult> Validate<TRequest>(TRequest request)

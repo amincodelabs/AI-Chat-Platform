@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Domain.Users;
 using PrivateAiChat.Infrastructure.Persistence;
+using PrivateAiChat.Infrastructure.Persistence.Repositories;
 
 namespace PrivateAiChat.Infrastructure.DependencyInjection;
 
@@ -24,6 +26,8 @@ public static class ServiceCollectionExtensions
             {
                 sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
             }));
+
+        services.AddScoped<IConversationRepository, ConversationRepository>();
 
         services
             .AddIdentity<User, IdentityRole<Guid>>(options =>
