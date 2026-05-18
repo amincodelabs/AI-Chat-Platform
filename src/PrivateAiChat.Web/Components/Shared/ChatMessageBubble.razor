@@ -1,0 +1,16 @@
+@using PrivateAiChat.Contracts.Conversations
+
+<article class="message-bubble message-bubble--@RoleClass">
+    <div class="message-bubble__meta">
+        <span>@Message.Role</span>
+        <time datetime="@Message.CreatedAt.ToString("O")">@Message.CreatedAt.ToLocalTime().ToString("h:mm tt")</time>
+    </div>
+    <p>@Message.Content</p>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public MessageResponse Message { get; set; } = default!;
+
+    private string RoleClass => Message.Role.ToLowerInvariant();
+}

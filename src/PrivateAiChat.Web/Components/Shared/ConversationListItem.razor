@@ -1,0 +1,23 @@
+@using PrivateAiChat.Contracts.Conversations
+
+<button class="conversation-item @(IsSelected ? "conversation-item--active" : null)"
+        type="button"
+        @onclick="OnSelected">
+    <span>@DisplayTitle</span>
+    <time datetime="@Conversation.UpdatedAt.ToString("O")">@Conversation.UpdatedAt.ToLocalTime().ToString("MMM d")</time>
+</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public ConversationSummaryResponse Conversation { get; set; } = default!;
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnSelected { get; set; }
+
+    private string DisplayTitle => string.IsNullOrWhiteSpace(Conversation.Title)
+        ? "Untitled conversation"
+        : Conversation.Title;
+}
