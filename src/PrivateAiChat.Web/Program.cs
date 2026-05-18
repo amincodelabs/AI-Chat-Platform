@@ -1,10 +1,16 @@
 using PrivateAiChat.Web.Components;
+using PrivateAiChat.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.Configure<ApiClientOptions>(builder.Configuration.GetSection(ApiClientOptions.SectionName));
+builder.Services.AddScoped<ApiCookieStore>();
+builder.Services.AddScoped<AuthApiClient>();
+builder.Services.AddScoped<AuthStateService>();
+builder.Services.AddScoped<ThemeService>();
 
 var app = builder.Build();
 

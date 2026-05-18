@@ -1,0 +1,87 @@
+@page "/signup"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using PrivateAiChat.Contracts.Auth
+@inject AuthApiClient AuthApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<div class="auth-page">
+    <AuthCard Title="Create your account" Subtitle="Start with a private account and add conversations later.">
+        <EditForm Model="model" OnValidSubmit="SubmitAsync" class="auth-form">
+            <DataAnnotationsValidator />
+
+            <div class="field">
+                <label for="email">Email</label>
+                <InputText id="email" class="text-input" @bind-Value="model.Email" autocomplete="email" />
+                <ValidationMessage For="() => model.Email" />
+            </div>
+
+            <div class="field">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" class="text-input" @bind-Value="model.Password" autocomplete="new-password" />
+                <ValidationMessage For="() => model.Password" />
+            </div>
+
+            <div class="field">
+                <label for="confirm-password">Confirm password</label>
+                <InputText id="confirm-password" type="password" class="text-input" @bind-Value="model.ConfirmPassword" autocomplete="new-password" />
+                <ValidationMessage For="() => model.ConfirmPassword" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="form-alert">@errorMessage</div>
+            }
+
+            <button class="primary-button" type="submit" disabled="@isLoading">
+                @(isLoading ? "Creating account..." : "Create account")
+            </button>
+
+            <p class="form-switch">Already have access? <a href="login">Sign in</a></p>
+        </EditForm>
+    </AuthCard>
+</div>
+
+@code {
+    private readonly SignupFormModel model = new();
+    private bool isLoading;
+    private string? errorMessage;
+
+    private async Task SubmitAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var result = await AuthApiClient.SignupAsync(
+            new SignupRequest(model.Email, model.Password, DisplayName: null),
+            CancellationToken.None);
+
+        if (result.Succeeded && result.Value is not null)
+        {
+            AuthState.SetUser(result.Value);
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        errorMessage = result.Error ?? "Account creation failed.";
+        isLoading = false;
+    }
+
+    private sealed class SignupFormModel
+    {
+        [Required]
+        [EmailAddress]
+        [MaxLength(256)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(8)]
+        [MaxLength(128)]
+        public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [Compare(nameof(Password), ErrorMessage = "Passwords must match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

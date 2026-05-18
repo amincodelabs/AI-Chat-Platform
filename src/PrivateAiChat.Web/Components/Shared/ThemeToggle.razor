@@ -1,0 +1,32 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject ThemeService ThemeService
+
+<button class="icon-button" type="button" title="Toggle theme" aria-label="Toggle theme" @onclick="ToggleThemeAsync">
+    <span>@Label</span>
+</button>
+
+@code {
+    private string Label => ThemeService.CurrentTheme == "dark" ? "Light" : "Dark";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await ThemeService.InitializeAsync();
+        StateHasChanged();
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        await ThemeService.ToggleAsync();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+    }
+}
