@@ -1,0 +1,17 @@
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Infrastructure.deps.json
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Infrastructure.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Infrastructure.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Application.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Domain.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Application.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/bin/Debug/net9.0/PrivateAiChat.Domain.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.csproj.AssemblyReference.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.AssemblyInfoInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.AssemblyInfo.cs
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.csproj.CoreCompileInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateA.9B7FC1E3.Up2Date
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/refint/PrivateAiChat.Infrastructure.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/PrivateAiChat.Infrastructure.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Infrastructure/obj/Debug/net9.0/ref/PrivateAiChat.Infrastructure.dll

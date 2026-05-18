@@ -1,0 +1,11 @@
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/bin/Debug/net9.0/PrivateAiChat.Domain.deps.json
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/bin/Debug/net9.0/PrivateAiChat.Domain.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/bin/Debug/net9.0/PrivateAiChat.Domain.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.AssemblyInfoInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.AssemblyInfo.cs
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.csproj.CoreCompileInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/refint/PrivateAiChat.Domain.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/PrivateAiChat.Domain.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Domain/obj/Debug/net9.0/ref/PrivateAiChat.Domain.dll

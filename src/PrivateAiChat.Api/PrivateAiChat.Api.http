@@ -1,0 +1,6 @@
+@PrivateAiChat.Api_HostAddress = http://localhost:5084
+
+GET {{PrivateAiChat.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

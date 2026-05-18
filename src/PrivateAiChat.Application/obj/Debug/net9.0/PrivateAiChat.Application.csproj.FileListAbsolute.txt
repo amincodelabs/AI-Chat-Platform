@@ -1,0 +1,15 @@
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/bin/Debug/net9.0/PrivateAiChat.Application.deps.json
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/bin/Debug/net9.0/PrivateAiChat.Application.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/bin/Debug/net9.0/PrivateAiChat.Application.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/bin/Debug/net9.0/PrivateAiChat.Domain.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/bin/Debug/net9.0/PrivateAiChat.Domain.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.csproj.AssemblyReference.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.GeneratedMSBuildEditorConfig.editorconfig
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.AssemblyInfoInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.AssemblyInfo.cs
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.csproj.CoreCompileInputs.cache
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateA.A9776BE4.Up2Date
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/refint/PrivateAiChat.Application.dll
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/PrivateAiChat.Application.pdb
+/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Application/obj/Debug/net9.0/ref/PrivateAiChat.Application.dll

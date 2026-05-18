@@ -1,0 +1,56 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "PrivateAiChat.Infrastructure/1.0.0": {
+        "dependencies": {
+          "PrivateAiChat.Application": "1.0.0",
+          "PrivateAiChat.Domain": "1.0.0"
+        },
+        "runtime": {
+          "PrivateAiChat.Infrastructure.dll": {}
+        }
+      },
+      "PrivateAiChat.Application/1.0.0": {
+        "dependencies": {
+          "PrivateAiChat.Domain": "1.0.0"
+        },
+        "runtime": {
+          "PrivateAiChat.Application.dll": {
+            "assemblyVersion": "1.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "PrivateAiChat.Domain/1.0.0": {
+        "runtime": {
+          "PrivateAiChat.Domain.dll": {
+            "assemblyVersion": "1.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PrivateAiChat.Infrastructure/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PrivateAiChat.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PrivateAiChat.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

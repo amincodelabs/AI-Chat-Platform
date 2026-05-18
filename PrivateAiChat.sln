@@ -1,0 +1,62 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9630BA9C-ECFC-4A11-9347-66D5F2833F11}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Api", "src\PrivateAiChat.Api\PrivateAiChat.Api.csproj", "{AD98D815-11DA-4F21-B6B0-DAF568B274DD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Web", "src\PrivateAiChat.Web\PrivateAiChat.Web.csproj", "{5508228C-9B76-4EC9-A753-BB6849D8561D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Domain", "src\PrivateAiChat.Domain\PrivateAiChat.Domain.csproj", "{57FEFA10-660A-40BB-AFAF-9EB26051B290}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Application", "src\PrivateAiChat.Application\PrivateAiChat.Application.csproj", "{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Infrastructure", "src\PrivateAiChat.Infrastructure\PrivateAiChat.Infrastructure.csproj", "{F565167E-A48A-4961-9109-1020B143FD20}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Contracts", "src\PrivateAiChat.Contracts\PrivateAiChat.Contracts.csproj", "{41214B98-DA9B-48DA-AEBE-C823D5D55DB2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AD98D815-11DA-4F21-B6B0-DAF568B274DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AD98D815-11DA-4F21-B6B0-DAF568B274DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AD98D815-11DA-4F21-B6B0-DAF568B274DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AD98D815-11DA-4F21-B6B0-DAF568B274DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5508228C-9B76-4EC9-A753-BB6849D8561D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5508228C-9B76-4EC9-A753-BB6849D8561D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5508228C-9B76-4EC9-A753-BB6849D8561D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5508228C-9B76-4EC9-A753-BB6849D8561D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57FEFA10-660A-40BB-AFAF-9EB26051B290}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57FEFA10-660A-40BB-AFAF-9EB26051B290}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57FEFA10-660A-40BB-AFAF-9EB26051B290}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57FEFA10-660A-40BB-AFAF-9EB26051B290}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F565167E-A48A-4961-9109-1020B143FD20}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F565167E-A48A-4961-9109-1020B143FD20}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F565167E-A48A-4961-9109-1020B143FD20}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F565167E-A48A-4961-9109-1020B143FD20}.Release|Any CPU.Build.0 = Release|Any CPU
+		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{AD98D815-11DA-4F21-B6B0-DAF568B274DD} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+		{5508228C-9B76-4EC9-A753-BB6849D8561D} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+		{57FEFA10-660A-40BB-AFAF-9EB26051B290} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+		{0C125A4D-9C8E-44F1-AAA7-3F5B5FB311C8} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+		{F565167E-A48A-4961-9109-1020B143FD20} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "pBzsFKfoxqQ=",
+  "success": true,
+  "projectFilePath": "/Users/aminchahardoli/Development/backend/PrivateAiChat/src/PrivateAiChat.Api/PrivateAiChat.Api.csproj",
+  "expectedPackageFiles": [
+    "/Users/aminchahardoli/.nuget/packages/microsoft.aspnetcore.openapi/9.0.0/microsoft.aspnetcore.openapi.9.0.0.nupkg.sha512",
+    "/Users/aminchahardoli/.nuget/packages/microsoft.openapi/1.6.17/microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}
