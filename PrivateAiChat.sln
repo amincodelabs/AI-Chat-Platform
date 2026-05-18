@@ -21,6 +21,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0D8F6EFC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Domain.Tests", "tests\PrivateAiChat.Domain.Tests\PrivateAiChat.Domain.Tests.csproj", "{2ABB5111-68D9-48C3-9692-777A36CE0A47}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrivateAiChat.Contracts.Tests", "tests\PrivateAiChat.Contracts.Tests\PrivateAiChat.Contracts.Tests.csproj", "{D246B03E-ED57-484F-BEC3-2B0D1B181CC8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,6 +60,10 @@ Global
 		{2ABB5111-68D9-48C3-9692-777A36CE0A47}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2ABB5111-68D9-48C3-9692-777A36CE0A47}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2ABB5111-68D9-48C3-9692-777A36CE0A47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D246B03E-ED57-484F-BEC3-2B0D1B181CC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D246B03E-ED57-484F-BEC3-2B0D1B181CC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D246B03E-ED57-484F-BEC3-2B0D1B181CC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D246B03E-ED57-484F-BEC3-2B0D1B181CC8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AD98D815-11DA-4F21-B6B0-DAF568B274DD} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
@@ -67,5 +73,6 @@ Global
 		{F565167E-A48A-4961-9109-1020B143FD20} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
 		{41214B98-DA9B-48DA-AEBE-C823D5D55DB2} = {9630BA9C-ECFC-4A11-9347-66D5F2833F11}
 		{2ABB5111-68D9-48C3-9692-777A36CE0A47} = {0D8F6EFC-364B-4271-B618-CAC50F34FE48}
+		{D246B03E-ED57-484F-BEC3-2B0D1B181CC8} = {0D8F6EFC-364B-4271-B618-CAC50F34FE48}
 	EndGlobalSection
 EndGlobal

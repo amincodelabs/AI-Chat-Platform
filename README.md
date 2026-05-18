@@ -36,6 +36,22 @@ Common fields are modeled on a shared base entity:
 
 Returns API status and checks database connectivity.
 
+## Auth Endpoints
+
+Authentication uses ASP.NET Core Identity with secure password hashing and application cookies.
+
+- `POST /auth/signup`
+- `POST /auth/login`
+- `POST /auth/logout`
+
+Current password policy:
+
+- Minimum 8 characters
+- Requires a digit
+- Requires lowercase
+- Requires uppercase
+- Does not require a symbol
+
 ## Migration
 
 Create the initial EF Core migration:
@@ -54,3 +70,5 @@ dotnet ef database update \
   --project src/PrivateAiChat.Infrastructure \
   --startup-project src/PrivateAiChat.Api
 ```
+
+After the authentication foundation migration, update the database with the same `dotnet ef database update` command.
