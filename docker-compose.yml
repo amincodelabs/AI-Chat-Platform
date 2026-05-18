@@ -23,6 +23,8 @@ services:
       - "${PRIVATEAICHAT_API_PORT:-5081}:8080"
     networks:
       - privateaichat
+    volumes:
+      - data-protection-keys:/home/app/.aspnet/DataProtection-Keys
     healthcheck:
       test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
       interval: 15s
@@ -45,6 +47,8 @@ services:
       - "${PRIVATEAICHAT_WEB_PORT:-5080}:8080"
     networks:
       - privateaichat
+    volumes:
+      - data-protection-keys:/home/app/.aspnet/DataProtection-Keys
     healthcheck:
       test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
       interval: 15s
@@ -103,3 +107,4 @@ networks:
 volumes:
   sqlserver-data:
   ollama-models:
+  data-protection-keys:
