@@ -11,7 +11,7 @@ services:
       ConnectionStrings__Redis: redis:6379
       Database__ApplyMigrations: "true"
       Ollama__BaseUrl: http://ollama:11434
-      Ollama__Model: ${OLLAMA_MODEL:-llama3.2}
+      Ollama__Model: ${OLLAMA_MODEL:-llama3.2:1b}
     depends_on:
       sqlserver:
         condition: service_healthy

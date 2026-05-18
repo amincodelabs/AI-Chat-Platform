@@ -157,8 +157,10 @@ SQL Server is bound to localhost only on port `14333` by default. Redis and Olla
 Pull the configured Ollama model into the persistent Ollama volume:
 
 ```bash
-docker compose exec ollama ollama pull llama3.2
+docker compose exec ollama ollama pull llama3.2:1b
 ```
+
+The Docker default uses `llama3.2:1b` so the full stack can run more comfortably on local development machines. Override `OLLAMA_MODEL` in `.env` if you want a larger model and have enough Docker memory available.
 
 For local Docker, the API receives these container-specific settings from `docker-compose.yml`:
 
