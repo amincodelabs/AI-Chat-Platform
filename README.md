@@ -52,6 +52,30 @@ Current password policy:
 - Requires uppercase
 - Does not require a symbol
 
+## Conversation Endpoints
+
+Conversation endpoints require an authenticated cookie.
+
+- `POST /api/conversations`
+- `GET /api/conversations`
+- `GET /api/conversations/{id}`
+- `DELETE /api/conversations/{id}`
+- `POST /api/conversations/{id}/messages`
+
+Example local flow:
+
+```bash
+curl -c cookies.txt -X POST https://localhost:7000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password1"}'
+
+curl -b cookies.txt -X POST https://localhost:7000/api/conversations \
+  -H "Content-Type: application/json" \
+  -d '{"title":"First chat"}'
+
+curl -b cookies.txt https://localhost:7000/api/conversations
+```
+
 ## Migration
 
 Create the initial EF Core migration:
