@@ -8,6 +8,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<ApiClientOptions>(builder.Configuration.GetSection(ApiClientOptions.SectionName));
 builder.Services.AddScoped<ApiCookieStore>();
+builder.Services.AddScoped<AppBootstrapService>();
 builder.Services.AddScoped<AuthApiClient>();
 builder.Services.AddScoped<ConversationApiClient>();
 builder.Services.AddScoped<AuthStateService>();

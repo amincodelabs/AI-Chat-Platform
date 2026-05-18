@@ -94,6 +94,7 @@ public sealed class ConversationService : IConversationService
 
         var message = new Message(conversation.Id, MessageRole.User, request.Content);
         conversation.Touch();
+        conversation.RenameFromMessage(message.Content);
 
         await _repository.AddMessageAsync(message, cancellationToken);
         await _repository.SaveChangesAsync(cancellationToken);

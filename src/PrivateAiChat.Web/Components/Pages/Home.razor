@@ -1,9 +1,11 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
 
-<section class="hero-panel">
-    <p class="eyebrow">PrivateAiChat</p>
-    <h1>Private AI conversations, ready for your own models.</h1>
-    <p>
-        Authentication and API plumbing are in place. Chat UI will arrive in a separate step.
-    </p>
-</section>
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo(AuthState.IsAuthenticated ? "/chat" : "/login", replace: true);
+    }
+}

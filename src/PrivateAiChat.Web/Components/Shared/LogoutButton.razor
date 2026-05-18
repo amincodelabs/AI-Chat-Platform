@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject AuthApiClient AuthApiClient
+@inject ApiCookieStore ApiCookieStore
 @inject AuthStateService AuthState
 @inject NavigationManager Navigation
 
@@ -23,9 +24,10 @@
     {
         isLoading = true;
         await AuthApiClient.LogoutAsync(CancellationToken.None);
-        AuthState.Clear();
+        await ApiCookieStore.ClearAsync();
+        await AuthState.ClearAsync();
         isLoading = false;
-        Navigation.NavigateTo("/login");
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     public void Dispose()

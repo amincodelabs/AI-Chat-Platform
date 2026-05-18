@@ -7,123 +7,170 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
 
-<section class="chat-page">
-    <aside class="chat-sidebar" aria-label="Conversations">
-        <div class="chat-sidebar__header">
-            <div>
-                <p class="eyebrow">Workspace</p>
-                <h1>Chat</h1>
-            </div>
-            <button class="primary-button chat-new-button" type="button" @onclick="CreateConversationAsync" disabled="@isCreatingConversation">
-                @(isCreatingConversation ? "Creating" : "New")
-            </button>
-        </div>
+@if (!AuthState.IsAuthenticated)
+{
+    <section class="chat-empty chat-empty--full">
+        <p class="eyebrow">Private workspace</p>
+        <h1>Sign in to continue.</h1>
+        <p>Your conversations are only available after login.</p>
+        <a class="primary-button chat-empty__action" href="/login">Go to login</a>
+    </section>
+}
+else
+{
+    <section class="chat-shell">
+        <div class="chat-shell__backdrop @(isDrawerOpen ? "is-visible" : null)" @onclick="CloseDrawer"></div>
 
-        @if (isLoadingConversations)
-        {
-            <div class="state-block">Loading conversations...</div>
-        }
-        else if (!string.IsNullOrWhiteSpace(conversationError))
-        {
-            <div class="form-alert">@conversationError</div>
-        }
-        else if (conversations.Count == 0)
-        {
-            <div class="state-block">Start with a new conversation.</div>
-        }
-        else
-        {
-            <div class="conversation-list">
-                @foreach (var conversation in conversations)
-                {
-                    <ConversationListItem Conversation="conversation"
-                                          IsSelected="conversation.Id == selectedConversationId"
-                                          OnSelected="() => SelectConversationAsync(conversation.Id)" />
-                }
-            </div>
-        }
-    </aside>
-
-    <section class="chat-panel" aria-label="Selected conversation">
-        @if (isLoadingConversation)
-        {
-            <div class="chat-empty">
-                <p class="eyebrow">Loading</p>
-                <h2>Opening conversation</h2>
-            </div>
-        }
-        else if (!string.IsNullOrWhiteSpace(messageError))
-        {
-            <div class="chat-empty">
-                <p class="eyebrow">Error</p>
-                <h2>@messageError</h2>
-            </div>
-        }
-        else if (selectedConversation is null)
-        {
-            <div class="chat-empty">
-                <p class="eyebrow">Private AI</p>
-                <h2>Select a conversation or create a new one.</h2>
-            </div>
-        }
-        else
-        {
-            <header class="chat-panel__header">
+        <aside class="chat-drawer @(isDrawerOpen ? "is-open" : null)" aria-label="Conversation list">
+            <header class="chat-drawer__header">
                 <div>
-                    <p class="eyebrow">Conversation</p>
-                    <h2>@GetTitle(selectedConversation.Title)</h2>
+                    <p class="eyebrow">Chats</p>
+                    <h1>Conversations</h1>
                 </div>
-                <button class="danger-button" type="button" @onclick="DeleteSelectedConversationAsync" disabled="@isDeletingConversation">
-                    @(isDeletingConversation ? "Deleting" : "Delete")
+                <button class="icon-button chat-drawer__close" type="button" @onclick="CloseDrawer" aria-label="Close conversation list">
+                    Close
                 </button>
             </header>
 
-            <div class="message-list" aria-live="polite">
-                @if (messages.Count == 0)
-                {
-                    <div class="chat-empty chat-empty--compact">
-                        <p class="eyebrow">No messages</p>
-                        <h2>Ask the first question.</h2>
-                    </div>
-                }
-                else
-                {
-                    @foreach (var message in messages)
+            <button class="primary-button chat-new-button" type="button" @onclick="CreateConversationAsync" disabled="@isCreatingConversation">
+                @(isCreatingConversation ? "Creating..." : "New chat")
+            </button>
+
+            @if (isLoadingConversations)
+            {
+                <div class="state-block state-block--padded">
+                    <TypingIndicator Label="Thinking" />
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(conversationError))
+            {
+                <div class="form-alert">@conversationError</div>
+            }
+            else if (conversations.Count == 0)
+            {
+                <div class="state-block state-block--padded">
+                    <p class="state-title">No conversations yet</p>
+                    <p class="state-copy">Start a new chat and your history will appear here.</p>
+                </div>
+            }
+            else
+            {
+                <div class="conversation-list">
+                    @foreach (var conversation in conversations)
                     {
-                        <ChatMessageBubble Message="message" />
+                        <ConversationListItem Conversation="conversation"
+                                              IsSelected="conversation.Id == selectedConversationId"
+                                              OnSelected="() => SelectConversationAsync(conversation.Id)" />
                     }
-                }
+                </div>
+            }
+        </aside>
 
-                @if (isSendingMessage)
-                {
-                    <article class="message-bubble message-bubble--assistant message-bubble--loading">
-                        <div class="message-bubble__meta">
-                            <span>Assistant</span>
-                            <time>Thinking</time>
-                        </div>
-                        <p>Preparing a response...</p>
-                    </article>
-                }
-            </div>
+        <section class="chat-thread" aria-label="Selected conversation">
+            <header class="chat-thread__header">
+                <div class="chat-thread__title">
+                    <button class="icon-button chat-menu-button" type="button" @onclick="ToggleDrawer" aria-label="Open conversation list">
+                        Chats
+                    </button>
 
-            <EditForm Model="messageModel" OnValidSubmit="SendMessageAsync" class="message-composer">
-                <DataAnnotationsValidator />
-                <InputTextArea class="message-input"
-                               placeholder="Write a message..."
-                               @bind-Value="messageModel.Content"
-                               disabled="@isSendingMessage" />
-                <ValidationMessage For="() => messageModel.Content" />
-                <button class="primary-button message-send-button" type="submit" disabled="@isSendingMessage">
-                    @(isSendingMessage ? "Sending" : "Send")
-                </button>
-            </EditForm>
-        }
+                    <div>
+                        <p class="eyebrow">Private workspace</p>
+                        <h2>@GetThreadTitle()</h2>
+                    </div>
+                </div>
+
+                <div class="chat-thread__actions">
+                    <button class="icon-button" type="button" @onclick="CreateConversationAsync" disabled="@isCreatingConversation">
+                        New chat
+                    </button>
+                    @if (selectedConversationId is not null)
+                    {
+                        <button class="danger-button" type="button" @onclick="DeleteSelectedConversationAsync" disabled="@isDeletingConversation">
+                            @(isDeletingConversation ? "Deleting..." : "Delete")
+                        </button>
+                    }
+                </div>
+            </header>
+
+            @if (isLoadingConversation)
+            {
+                <section class="chat-empty chat-empty--full">
+                    <p class="eyebrow">Loading</p>
+                    <h1>Opening conversation</h1>
+                    <TypingIndicator Label="Thinking" />
+                </section>
+            }
+            else if (!string.IsNullOrWhiteSpace(messageError))
+            {
+                <section class="chat-empty chat-empty--full">
+                    <p class="eyebrow">Error</p>
+                    <h1>@messageError</h1>
+                </section>
+            }
+            else if (selectedConversation is null)
+            {
+                <section class="chat-empty chat-empty--full">
+                    <p class="eyebrow">ChatGPT-style workspace</p>
+                    <h1>Select a conversation or start a new one.</h1>
+                    <p class="state-copy">Use the drawer to move between chats, or create a fresh conversation for a new topic.</p>
+                    <button class="primary-button chat-empty__action" type="button" @onclick="CreateConversationAsync" disabled="@isCreatingConversation">
+                        New chat
+                    </button>
+                </section>
+            }
+            else
+            {
+                <div class="chat-thread__messages" aria-live="polite">
+                    @if (messages.Count == 0)
+                    {
+                        <section class="chat-empty chat-empty--compact">
+                            <p class="eyebrow">No messages yet</p>
+                            <h1>Ask the first question.</h1>
+                        </section>
+                    }
+                    else
+                    {
+                        @foreach (var message in messages)
+                        {
+                            <ChatMessageBubble Message="message" />
+                        }
+                    }
+
+                    @if (isSendingMessage)
+                    {
+                        <article class="message-bubble message-bubble--assistant message-bubble--loading">
+                            <div class="message-bubble__meta">
+                                <span>Assistant</span>
+                                <time>Thinking</time>
+                            </div>
+                            <TypingIndicator Label="Thinking" />
+                        </article>
+                    }
+                </div>
+
+                <EditForm Model="messageModel" OnValidSubmit="SendMessageAsync" class="chat-composer">
+                    <DataAnnotationsValidator />
+
+                    <div class="chat-composer__field">
+                        <InputTextArea class="message-input"
+                                       placeholder="Send a message..."
+                                       @bind-Value="messageModel.Content"
+                                       disabled="@isSendingMessage" />
+                        <ValidationMessage For="() => messageModel.Content" />
+                    </div>
+
+                    <button class="primary-button message-send-button" type="submit" disabled="@isSendingMessage">
+                        @(isSendingMessage ? "Thinking..." : "Send")
+                    </button>
+                </EditForm>
+            }
+        </section>
     </section>
-</section>
+}
 
 @code {
     private readonly CancellationTokenSource cancellationTokenSource = new();
-    private readonly MessageFormModel messageModel = new();
+    private MessageFormModel messageModel = new();
     private readonly List<ConversationSummaryResponse> conversations = [];
     private readonly List<MessageResponse> messages = [];
     private ConversationDetailsResponse? selectedConversation;
@@ -133,28 +180,27 @@
     private bool isCreatingConversation;
     private bool isDeletingConversation;
     private bool isSendingMessage;
-    private bool shouldRedirectToLogin;
+    private bool isDrawerOpen;
     private string? conversationError;
     private string? messageError;
 
     protected override async Task OnInitializedAsync()
     {
+        AuthState.Changed += HandleAuthChanged;
+
         if (!AuthState.IsAuthenticated)
         {
-            shouldRedirectToLogin = true;
             return;
         }
 
         await LoadConversationsAsync();
     }
 
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender && shouldRedirectToLogin)
-        {
-            Navigation.NavigateTo("/login");
-        }
-    }
+    private void HandleAuthChanged() => InvokeAsync(StateHasChanged);
+
+    private void ToggleDrawer() => isDrawerOpen = !isDrawerOpen;
+
+    private void CloseDrawer() => isDrawerOpen = false;
 
     private async Task LoadConversationsAsync()
     {
@@ -173,6 +219,7 @@
         }
 
         isLoadingConversations = false;
+        StateHasChanged();
     }
 
     private async Task CreateConversationAsync()
@@ -181,13 +228,14 @@
         conversationError = null;
 
         var result = await ConversationApiClient.CreateConversationAsync(
-            new CreateConversationRequest("New conversation"),
+            new CreateConversationRequest(null),
             cancellationTokenSource.Token);
 
         if (result.Succeeded && result.Value is not null)
         {
             conversations.Insert(0, result.Value);
             await SelectConversationAsync(result.Value.Id);
+            isDrawerOpen = false;
         }
         else
         {
@@ -195,6 +243,7 @@
         }
 
         isCreatingConversation = false;
+        StateHasChanged();
     }
 
     private async Task SelectConversationAsync(Guid conversationId)
@@ -204,6 +253,7 @@
         messages.Clear();
         messageError = null;
         isLoadingConversation = true;
+        isDrawerOpen = false;
 
         var result = await ConversationApiClient.GetConversationAsync(conversationId, cancellationTokenSource.Token);
         if (result.Succeeded && result.Value is not null)
@@ -217,6 +267,7 @@
         }
 
         isLoadingConversation = false;
+        StateHasChanged();
     }
 
     private async Task SendMessageAsync()
@@ -239,7 +290,10 @@
         {
             messages.Add(result.Value.UserMessage);
             messages.Add(result.Value.AssistantMessage);
-            messageModel.Content = string.Empty;
+            messageModel = new MessageFormModel();
+            selectedConversation = selectedConversation is null
+                ? selectedConversation
+                : selectedConversation with { Title = BuildConversationTitle(content) };
             await LoadConversationsAsync();
         }
         else
@@ -248,6 +302,7 @@
         }
 
         isSendingMessage = false;
+        StateHasChanged();
     }
 
     private async Task DeleteSelectedConversationAsync()
@@ -287,6 +342,7 @@
         }
 
         isDeletingConversation = false;
+        StateHasChanged();
     }
 
     private void HandleApiError(string? error, bool isConversationError)
@@ -294,9 +350,8 @@
         var message = error ?? "The request could not be completed.";
         if (message == "Authentication is required.")
         {
-            AuthState.Clear();
-            shouldRedirectToLogin = true;
-            Navigation.NavigateTo("/login");
+            _ = AuthState.ClearAsync();
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -309,11 +364,21 @@
         messageError = message;
     }
 
+    private string GetThreadTitle() =>
+        selectedConversation is null ? "Conversations" : GetTitle(selectedConversation.Title);
+
     private static string GetTitle(string? title) =>
         string.IsNullOrWhiteSpace(title) ? "Untitled conversation" : title;
 
+    private static string BuildConversationTitle(string content)
+    {
+        var title = content.Trim().ReplaceLineEndings(" ");
+        return title.Length <= 50 ? title : title[..50].Trim();
+    }
+
     public void Dispose()
     {
+        AuthState.Changed -= HandleAuthChanged;
         cancellationTokenSource.Cancel();
         cancellationTokenSource.Dispose();
     }

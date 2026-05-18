@@ -9,14 +9,18 @@ namespace PrivateAiChat.Web.Services;
 public sealed class AuthApiClient : IDisposable
 {
     private readonly HttpClient _httpClient;
+    private readonly ApiCookieStore _cookieStore;
 
     public AuthApiClient(IOptions<ApiClientOptions> options, ApiCookieStore cookieStore)
     {
+        _cookieStore = cookieStore;
         var apiBaseUrl = new Uri(options.Value.BaseUrl, UriKind.Absolute);
-        var handler = new HttpClientHandler
+        var handler = new ApiCookieHandler(cookieStore)
         {
-            CookieContainer = cookieStore.Cookies,
-            UseCookies = true
+            InnerHandler = new HttpClientHandler
+            {
+                UseCookies = false
+            }
         };
 
         _httpClient = new HttpClient(handler)
@@ -38,6 +42,11 @@ public sealed class AuthApiClient : IDisposable
     public async Task<ApiResult> LogoutAsync(CancellationToken cancellationToken)
     {
         using var response = await _httpClient.PostAsync("auth/logout", content: null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            await _cookieStore.PersistAsync();
+        }
+
         return response.IsSuccessStatusCode
             ? ApiResult.Success()
             : ApiResult.Failure(await ReadErrorAsync(response, cancellationToken));
@@ -58,6 +67,7 @@ public sealed class AuthApiClient : IDisposable
         }
 
         var value = await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+        await _cookieStore.PersistAsync();
         return value is null
             ? ApiResult<TResponse>.Failure("The API returned an empty response.")
             : ApiResult<TResponse>.Success(value);
