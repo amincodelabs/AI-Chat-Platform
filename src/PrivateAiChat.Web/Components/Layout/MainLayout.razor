@@ -1,20 +1,24 @@
 ﻿@inherits LayoutComponentBase
 @inject AppBootstrapService AppBootstrap
+@inject NavigationManager Navigation
 
 <div class="app-shell">
-    <header class="app-header">
-        <a class="brand" href="">
-            <span class="brand-mark">P</span>
-            <span>PrivateAiChat</span>
-        </a>
+    @if (!IsChatRoute)
+    {
+        <header class="app-header">
+            <a class="brand" href="">
+                <span class="brand-mark">P</span>
+                <span>PrivateAiChat</span>
+            </a>
 
-        <div class="shell-actions">
-            <ThemeToggle />
-            <LogoutButton />
-        </div>
-    </header>
+            <div class="shell-actions">
+                <ThemeToggle />
+                <LogoutButton />
+            </div>
+        </header>
+    }
 
-    <main class="app-main">
+    <main class="app-main @(IsChatRoute ? "app-main--chat" : null)">
         @if (!AppBootstrap.IsInitialized)
         {
             <section class="app-loading">
@@ -51,4 +55,9 @@
         await AppBootstrap.InitializeAsync();
         StateHasChanged();
     }
+
+    private bool IsChatRoute =>
+        Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Trim('/')
+            .StartsWith("chat", StringComparison.OrdinalIgnoreCase);
 }

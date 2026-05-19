@@ -7,7 +7,12 @@
 </button>
 
 @code {
-    private string Label => ThemeService.CurrentTheme == "dark" ? "Light" : "Dark";
+    private string Label => ThemeService.CurrentTheme switch
+    {
+        "dark" => "Light",
+        "light" => "System",
+        _ => "Dark"
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
