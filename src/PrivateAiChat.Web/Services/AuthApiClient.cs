@@ -1,6 +1,4 @@
-using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
 using PrivateAiChat.Contracts.Auth;
 
@@ -41,15 +39,22 @@ public sealed class AuthApiClient : IDisposable
 
     public async Task<ApiResult> LogoutAsync(CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.PostAsync("auth/logout", content: null, cancellationToken);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            await _cookieStore.PersistAsync();
-        }
+            using var response = await _httpClient.PostAsync("auth/logout", content: null, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                await _cookieStore.PersistAsync();
+            }
 
-        return response.IsSuccessStatusCode
-            ? ApiResult.Success()
-            : ApiResult.Failure(await ReadErrorAsync(response, cancellationToken));
+            return response.IsSuccessStatusCode
+                ? ApiResult.Success()
+                : ApiResult.Failure(await ApiErrorParser.ReadErrorAsync(response, cancellationToken));
+        }
+        catch (Exception exception) when (IsNetworkFailure(exception, cancellationToken))
+        {
+            return ApiResult.Failure(ToNetworkError(exception));
+        }
     }
 
     public void Dispose() => _httpClient.Dispose();
@@ -59,62 +64,36 @@ public sealed class AuthApiClient : IDisposable
         object request,
         CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            return ApiResult<TResponse>.Failure(await ReadErrorAsync(response, cancellationToken));
-        }
-
-        var value = await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
-        await _cookieStore.PersistAsync();
-        return value is null
-            ? ApiResult<TResponse>.Failure("The API returned an empty response.")
-            : ApiResult<TResponse>.Success(value);
-    }
-
-    private static async Task<string> ReadErrorAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        if (response.StatusCode is HttpStatusCode.Unauthorized)
-        {
-            return "The email or password is incorrect.";
-        }
-
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return $"The API returned {(int)response.StatusCode}.";
-        }
-
         try
         {
-            using var document = JsonDocument.Parse(content);
-            if (document.RootElement.TryGetProperty("errors", out var errors))
-            {
-                var messages = errors.EnumerateObject()
-                    .SelectMany(error => error.Value.EnumerateArray())
-                    .Select(error => error.GetString())
-                    .Where(error => !string.IsNullOrWhiteSpace(error))
-                    .ToArray();
+            using var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
 
-                if (messages.Length > 0)
-                {
-                    return string.Join(" ", messages);
-                }
+            if (!response.IsSuccessStatusCode)
+            {
+                return ApiResult<TResponse>.Failure(await ApiErrorParser.ReadErrorAsync(
+                    response,
+                    cancellationToken,
+                    unauthorizedMessage: "The email or password is incorrect."));
             }
 
-            if (document.RootElement.TryGetProperty("title", out var title))
-            {
-                return title.GetString() ?? "The request could not be completed.";
-            }
+            var value = await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+            await _cookieStore.PersistAsync();
+            return value is null
+                ? ApiResult<TResponse>.Failure("The API returned an empty response.")
+                : ApiResult<TResponse>.Success(value);
         }
-        catch (JsonException)
+        catch (Exception exception) when (IsNetworkFailure(exception, cancellationToken))
         {
-            return content;
+            return ApiResult<TResponse>.Failure(ToNetworkError(exception));
         }
-
-        return "The request could not be completed.";
     }
+
+    private static bool IsNetworkFailure(Exception exception, CancellationToken cancellationToken) =>
+        !cancellationToken.IsCancellationRequested &&
+        exception is HttpRequestException or TaskCanceledException or IOException;
+
+    private static string ToNetworkError(Exception exception) =>
+        exception is TaskCanceledException
+            ? "The request timed out. Please try again."
+            : "The API could not be reached. Please check the connection and try again.";
 }

@@ -91,7 +91,8 @@ The API reads Ollama settings from `src/PrivateAiChat.Api/appsettings*.json`:
 ```json
 "Ollama": {
   "BaseUrl": "http://localhost:11434",
-  "Model": "llama3.2"
+  "Model": "llama3.2",
+  "TimeoutSeconds": 120
 }
 ```
 
@@ -169,6 +170,7 @@ ConnectionStrings__DefaultConnection=Server=sqlserver,1433;...
 ConnectionStrings__Redis=redis:6379
 Database__ApplyMigrations=true
 Ollama__BaseUrl=http://ollama:11434
+Ollama__TimeoutSeconds=120
 Authentication__CookieSecurePolicy=SameAsRequest
 ```
 

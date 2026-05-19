@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
@@ -27,41 +26,45 @@ public sealed class ConversationApiClient : IDisposable
         };
     }
 
-    public async Task<ApiResult<IReadOnlyCollection<ConversationSummaryResponse>>> GetConversationsAsync(
-        CancellationToken cancellationToken)
-    {
-        using var response = await _httpClient.GetAsync("api/conversations", cancellationToken);
-        return await ReadResponseAsync<IReadOnlyCollection<ConversationSummaryResponse>>(response, cancellationToken);
-    }
+    public Task<ApiResult<IReadOnlyCollection<ConversationSummaryResponse>>> GetConversationsAsync(
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.GetAsync("api/conversations", cancellationToken);
+            return await ReadResponseAsync<IReadOnlyCollection<ConversationSummaryResponse>>(response, cancellationToken);
+        }, cancellationToken);
 
-    public async Task<ApiResult<ConversationDetailsResponse>> GetConversationAsync(
+    public Task<ApiResult<ConversationDetailsResponse>> GetConversationAsync(
         Guid id,
-        CancellationToken cancellationToken)
-    {
-        using var response = await _httpClient.GetAsync($"api/conversations/{id}", cancellationToken);
-        return await ReadResponseAsync<ConversationDetailsResponse>(response, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.GetAsync($"api/conversations/{id}", cancellationToken);
+            return await ReadResponseAsync<ConversationDetailsResponse>(response, cancellationToken);
+        }, cancellationToken);
 
-    public async Task<ApiResult<ConversationSummaryResponse>> CreateConversationAsync(
+    public Task<ApiResult<ConversationSummaryResponse>> CreateConversationAsync(
         CreateConversationRequest request,
-        CancellationToken cancellationToken)
-    {
-        using var response = await _httpClient.PostAsJsonAsync("api/conversations", request, cancellationToken);
-        return await ReadResponseAsync<ConversationSummaryResponse>(response, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.PostAsJsonAsync("api/conversations", request, cancellationToken);
+            return await ReadResponseAsync<ConversationSummaryResponse>(response, cancellationToken);
+        }, cancellationToken);
 
-    public async Task<ApiResult<AddMessageResponse>> AddMessageAsync(
+    public Task<ApiResult<AddMessageResponse>> AddMessageAsync(
         Guid conversationId,
         AddMessageRequest request,
-        CancellationToken cancellationToken)
-    {
-        using var response = await _httpClient.PostAsJsonAsync(
-            $"api/conversations/{conversationId}/messages",
-            request,
-            cancellationToken);
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.PostAsJsonAsync(
+                $"api/conversations/{conversationId}/messages",
+                request,
+                cancellationToken);
 
-        return await ReadResponseAsync<AddMessageResponse>(response, cancellationToken);
-    }
+            return await ReadResponseAsync<AddMessageResponse>(response, cancellationToken);
+        }, cancellationToken);
 
     public async Task<ApiResult> AddMessageStreamingAsync(
         Guid conversationId,
@@ -71,78 +74,92 @@ public sealed class ConversationApiClient : IDisposable
         Func<MessageResponse, Task> onAssistantMessage,
         CancellationToken cancellationToken)
     {
-        using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"api/conversations/{conversationId}/messages/stream")
+        try
         {
-            Content = JsonContent.Create(request)
-        };
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/conversations/{conversationId}/messages/stream")
+            {
+                Content = JsonContent.Create(request)
+            };
 
-        using var response = await _httpClient.SendAsync(
-            httpRequest,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
+            using var response = await _httpClient.SendAsync(
+                httpRequest,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            return ApiResult.Failure(await ReadErrorAsync(response, cancellationToken));
+            if (!response.IsSuccessStatusCode)
+            {
+                return ApiResult.Failure(await ApiErrorParser.ReadErrorAsync(response, cancellationToken));
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: ", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                ChatStreamEvent? streamEvent;
+                try
+                {
+                    streamEvent = JsonSerializer.Deserialize<ChatStreamEvent>(
+                        line["data: ".Length..],
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                }
+                catch (JsonException)
+                {
+                    return ApiResult.Failure("The API returned an invalid streaming response.");
+                }
+
+                if (streamEvent is null)
+                {
+                    continue;
+                }
+
+                switch (streamEvent.Type)
+                {
+                    case ChatStreamEvent.UserMessage when streamEvent.Message is not null:
+                        await onUserMessage(streamEvent.Message);
+                        break;
+                    case ChatStreamEvent.AssistantChunk when streamEvent.Content is not null:
+                        await onAssistantChunk(streamEvent.Content);
+                        break;
+                    case ChatStreamEvent.AssistantMessage when streamEvent.Message is not null:
+                        await onAssistantMessage(streamEvent.Message);
+                        break;
+                    case ChatStreamEvent.NotFound:
+                        return ApiResult.Failure("Conversation was not found.");
+                    case ChatStreamEvent.Error:
+                        return ApiResult.Failure(streamEvent.Content ?? "The streaming response failed.");
+                }
+            }
+
+            return ApiResult.Success();
         }
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new StreamReader(stream);
-
-        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (IsNetworkFailure(exception, cancellationToken))
         {
-            var line = await reader.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: ", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            ChatStreamEvent? streamEvent;
-            try
-            {
-                streamEvent = JsonSerializer.Deserialize<ChatStreamEvent>(
-                    line["data: ".Length..],
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            }
-            catch (JsonException)
-            {
-                return ApiResult.Failure("The API returned an invalid streaming response.");
-            }
-
-            if (streamEvent is null)
-            {
-                continue;
-            }
-
-            switch (streamEvent.Type)
-            {
-                case ChatStreamEvent.UserMessage when streamEvent.Message is not null:
-                    await onUserMessage(streamEvent.Message);
-                    break;
-                case ChatStreamEvent.AssistantChunk when streamEvent.Content is not null:
-                    await onAssistantChunk(streamEvent.Content);
-                    break;
-                case ChatStreamEvent.AssistantMessage when streamEvent.Message is not null:
-                    await onAssistantMessage(streamEvent.Message);
-                    break;
-                case ChatStreamEvent.NotFound:
-                    return ApiResult.Failure("Conversation was not found.");
-                case ChatStreamEvent.Error:
-                    return ApiResult.Failure(streamEvent.Content ?? "The streaming response failed.");
-            }
+            return ApiResult.Failure(ToNetworkError(exception));
         }
-
-        return ApiResult.Success();
     }
 
     public async Task<ApiResult> DeleteConversationAsync(Guid id, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.DeleteAsync($"api/conversations/{id}", cancellationToken);
-        return response.IsSuccessStatusCode
-            ? ApiResult.Success()
-            : ApiResult.Failure(await ReadErrorAsync(response, cancellationToken));
+        try
+        {
+            using var response = await _httpClient.DeleteAsync($"api/conversations/{id}", cancellationToken);
+            return response.IsSuccessStatusCode
+                ? ApiResult.Success()
+                : ApiResult.Failure(await ApiErrorParser.ReadErrorAsync(response, cancellationToken));
+        }
+        catch (Exception exception) when (IsNetworkFailure(exception, cancellationToken))
+        {
+            return ApiResult.Failure(ToNetworkError(exception));
+        }
     }
 
     public void Dispose() => _httpClient.Dispose();
@@ -153,7 +170,7 @@ public sealed class ConversationApiClient : IDisposable
     {
         if (!response.IsSuccessStatusCode)
         {
-            return ApiResult<TResponse>.Failure(await ReadErrorAsync(response, cancellationToken));
+            return ApiResult<TResponse>.Failure(await ApiErrorParser.ReadErrorAsync(response, cancellationToken));
         }
 
         var value = await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
@@ -162,53 +179,26 @@ public sealed class ConversationApiClient : IDisposable
             : ApiResult<TResponse>.Success(value);
     }
 
-    private static async Task<string> ReadErrorAsync(
-        HttpResponseMessage response,
+    private static async Task<ApiResult<TResponse>> ExecuteAsync<TResponse>(
+        Func<Task<ApiResult<TResponse>>> operation,
         CancellationToken cancellationToken)
     {
-        if (response.StatusCode is HttpStatusCode.Unauthorized)
-        {
-            return "Authentication is required.";
-        }
-
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return $"The API returned {(int)response.StatusCode}.";
-        }
-
         try
         {
-            using var document = JsonDocument.Parse(content);
-            if (document.RootElement.TryGetProperty("errors", out var errors))
-            {
-                var messages = errors.EnumerateObject()
-                    .SelectMany(error => error.Value.EnumerateArray())
-                    .Select(error => error.GetString())
-                    .Where(error => !string.IsNullOrWhiteSpace(error))
-                    .ToArray();
-
-                if (messages.Length > 0)
-                {
-                    return string.Join(" ", messages);
-                }
-            }
-
-            if (document.RootElement.TryGetProperty("detail", out var detail))
-            {
-                return detail.GetString() ?? "The request could not be completed.";
-            }
-
-            if (document.RootElement.TryGetProperty("title", out var title))
-            {
-                return title.GetString() ?? "The request could not be completed.";
-            }
+            return await operation();
         }
-        catch (JsonException)
+        catch (Exception exception) when (IsNetworkFailure(exception, cancellationToken))
         {
-            return content;
+            return ApiResult<TResponse>.Failure(ToNetworkError(exception));
         }
-
-        return "The request could not be completed.";
     }
+
+    private static bool IsNetworkFailure(Exception exception, CancellationToken cancellationToken) =>
+        !cancellationToken.IsCancellationRequested &&
+        exception is HttpRequestException or TaskCanceledException or IOException;
+
+    private static string ToNetworkError(Exception exception) =>
+        exception is TaskCanceledException
+            ? "The request timed out. Please try again."
+            : "The API could not be reached. Please check the connection and try again.";
 }

@@ -140,13 +140,6 @@ else
                         <TypingIndicator Label="Thinking" />
                     </section>
                 }
-                else if (!string.IsNullOrWhiteSpace(messageError))
-                {
-                    <section class="chat-empty chat-empty--panel">
-                        <p class="eyebrow">Error</p>
-                        <h2>@messageError</h2>
-                    </section>
-                }
                 else if (selectedConversation is null)
                 {
                     <section class="chat-empty chat-empty--panel">
@@ -160,6 +153,21 @@ else
                 else
                 {
                     <div id="chat-message-list" class="chat-panel__messages" aria-live="polite">
+                        @if (!string.IsNullOrWhiteSpace(messageError))
+                        {
+                            <div class="chat-error-banner" role="alert">
+                                <div>
+                                    <strong>Something went wrong</strong>
+                                    <span>@messageError</span>
+                                </div>
+                                <button class="icon-only" type="button" @onclick="ClearMessageError" aria-label="Dismiss error">
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M18 6 6 18M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        }
+
                         @if (messages.Count == 0)
                         {
                             <section class="chat-empty chat-empty--compact">
@@ -360,6 +368,8 @@ else
     private void OpenSettings() => isSettingsOpen = true;
 
     private void CloseSettings() => isSettingsOpen = false;
+
+    private void ClearMessageError() => messageError = null;
 
     private async Task SetThemeAsync(string theme)
     {

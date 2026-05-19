@@ -30,22 +30,22 @@ public sealed class OllamaChatCompletionService : IChatCompletionService
 
         try
         {
-            response = await _httpClient.PostAsJsonAsync("api/chat", request, cancellationToken);
+            response = await SendWithRetryAsync(request, cancellationToken);
         }
         catch (HttpRequestException exception)
         {
-            throw new ChatCompletionException("Ollama is unavailable.", exception);
+            throw new ChatCompletionException("Ollama is unavailable.", exception, "ollama_unavailable");
         }
         catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new ChatCompletionException("Ollama request timed out.", exception);
+            throw new ChatCompletionException("Ollama request timed out.", exception, "ollama_timeout");
         }
 
         using var _ = response;
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new ChatCompletionException($"Ollama returned HTTP {(int)response.StatusCode}.");
+            throw new ChatCompletionException($"Ollama returned HTTP {(int)response.StatusCode}.", "ollama_http_error");
         }
 
         var completion = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(cancellationToken);
@@ -84,18 +84,18 @@ public sealed class OllamaChatCompletionService : IChatCompletionService
         }
         catch (HttpRequestException exception)
         {
-            throw new ChatCompletionException("Ollama is unavailable.", exception);
+            throw new ChatCompletionException("Ollama is unavailable.", exception, "ollama_unavailable");
         }
         catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new ChatCompletionException("Ollama request timed out.", exception);
+            throw new ChatCompletionException("Ollama request timed out.", exception, "ollama_timeout");
         }
 
         using var _ = response;
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new ChatCompletionException($"Ollama returned HTTP {(int)response.StatusCode}.");
+            throw new ChatCompletionException($"Ollama returned HTTP {(int)response.StatusCode}.", "ollama_http_error");
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -118,7 +118,10 @@ public sealed class OllamaChatCompletionService : IChatCompletionService
             }
             catch (JsonException exception)
             {
-                throw new ChatCompletionException("Ollama returned an invalid streaming response.", exception);
+                throw new ChatCompletionException(
+                    "Ollama returned an invalid streaming response.",
+                    exception,
+                    "ollama_invalid_response");
             }
 
             var content = chunk?.Message?.Content;
@@ -133,6 +136,45 @@ public sealed class OllamaChatCompletionService : IChatCompletionService
         string Model,
         bool Stream,
         IReadOnlyCollection<OllamaMessage> Messages);
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        OllamaChatRequest request,
+        CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 2;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.PostAsJsonAsync("api/chat", request, cancellationToken);
+            }
+            catch (HttpRequestException) when (attempt < maxAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                continue;
+            }
+
+            if (!ShouldRetry(response) || attempt == maxAttempts)
+            {
+                return response;
+            }
+
+            response.Dispose();
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+        }
+
+        throw new InvalidOperationException("Retry loop exited unexpectedly.");
+    }
+
+    private static bool ShouldRetry(HttpResponseMessage response) =>
+        response.StatusCode is
+            System.Net.HttpStatusCode.RequestTimeout or
+            System.Net.HttpStatusCode.TooManyRequests or
+            System.Net.HttpStatusCode.BadGateway or
+            System.Net.HttpStatusCode.ServiceUnavailable or
+            System.Net.HttpStatusCode.GatewayTimeout;
 
     private sealed record OllamaMessage(
         string Role,
