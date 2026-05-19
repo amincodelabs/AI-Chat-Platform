@@ -1,13 +1,27 @@
 window.privateAiChatTheme = {
   get: (key) => localStorage.getItem(key),
   set: (key, theme) => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem(key, theme);
+    const selectedTheme = theme === "light" || theme === "dark" ? theme : "system";
+    const resolvedTheme = selectedTheme === "system"
+      ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+      : selectedTheme;
+
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.themePreference = selectedTheme;
+    localStorage.setItem(key, selectedTheme);
   },
   boot: (key) => {
-    const theme = localStorage.getItem(key) || "dark";
-    document.documentElement.dataset.theme = theme;
+    window.privateAiChatTheme.set(key, localStorage.getItem(key) || "system");
   }
 };
 
 window.privateAiChatTheme.boot("private-ai-chat-theme");
+
+window
+  .matchMedia("(prefers-color-scheme: light)")
+  .addEventListener("change", () => {
+    const key = "private-ai-chat-theme";
+    if ((localStorage.getItem(key) || "system") === "system") {
+      window.privateAiChatTheme.set(key, "system");
+    }
+  });
