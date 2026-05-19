@@ -427,6 +427,24 @@ textarea {
     transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
+.icon-only svg,
+.new-chat-button svg,
+.composer-send-button svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.composer-send-button svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    stroke-width: 2.25;
+}
+
 .icon-only:hover:not(:disabled),
 .quiet-button:hover:not(:disabled),
 .new-chat-button:hover:not(:disabled) {
