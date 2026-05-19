@@ -180,9 +180,17 @@ else
                             <article class="message-bubble message-bubble--assistant message-bubble--loading">
                                 <div class="message-bubble__meta">
                                     <span>PrivateAiChat</span>
-                                    <time>Thinking</time>
+                                    <time>@(string.IsNullOrWhiteSpace(streamingAssistantContent) ? "Thinking" : "Streaming")</time>
                                 </div>
-                                <TypingIndicator Label="Thinking" />
+                                @if (string.IsNullOrWhiteSpace(streamingAssistantContent))
+                                {
+                                    <TypingIndicator Label="Thinking" />
+                                }
+                                else
+                                {
+                                    <p>@streamingAssistantContent</p>
+                                    <TypingIndicator Label="Streaming" />
+                                }
                             </article>
                         }
                     </div>
@@ -270,8 +278,10 @@ else
     private bool isComposerBound;
     private bool shouldScrollMessages;
     private int renderedMessageCount;
+    private string streamingAssistantContent = string.Empty;
     private string? conversationError;
     private string? messageError;
+    private CancellationTokenSource? streamingCancellationTokenSource;
     private DotNetObjectReference<Chat>? dotNetReference;
 
     private string UserDisplayName =>
@@ -403,9 +413,11 @@ else
 
     private async Task SelectConversationAsync(Guid conversationId)
     {
+        CancelStreaming();
         selectedConversationId = conversationId;
         selectedConversation = null;
         messages.Clear();
+        streamingAssistantContent = string.Empty;
         messageError = null;
         isLoadingConversation = true;
         isDrawerOpen = false;
@@ -453,32 +465,77 @@ else
         messageError = null;
         var content = messageModel.Content.Trim();
         messageModel = new MessageFormModel();
+        streamingAssistantContent = string.Empty;
         shouldScrollMessages = true;
         StateHasChanged();
 
-        var result = await ConversationApiClient.AddMessageAsync(
-            conversationId,
-            new AddMessageRequest(content),
-            cancellationTokenSource.Token);
+        var userMessageReceived = false;
+        var assistantMessageReceived = false;
+        var streamingToken = CreateStreamingToken();
 
-        if (result.Succeeded && result.Value is not null)
+        try
         {
-            messages.Add(result.Value.UserMessage);
-            messages.Add(result.Value.AssistantMessage);
-            selectedConversation = selectedConversation is null
-                ? selectedConversation
-                : selectedConversation with { Title = BuildConversationTitle(content) };
-            shouldScrollMessages = true;
-            await LoadConversationsAsync();
-        }
-        else
-        {
-            messageModel.Content = content;
-            HandleApiError(result.Error, isConversationError: false);
-        }
+            var result = await ConversationApiClient.AddMessageStreamingAsync(
+                conversationId,
+                new AddMessageRequest(content),
+                async userMessage =>
+                {
+                    userMessageReceived = true;
+                    messages.Add(userMessage);
+                    selectedConversation = selectedConversation is null
+                        ? selectedConversation
+                        : selectedConversation with { Title = BuildConversationTitle(content) };
+                    shouldScrollMessages = true;
+                    await InvokeAsync(StateHasChanged);
+                },
+                async chunk =>
+                {
+                    streamingAssistantContent += chunk;
+                    shouldScrollMessages = true;
+                    await InvokeAsync(StateHasChanged);
+                },
+                async assistantMessage =>
+                {
+                    assistantMessageReceived = true;
+                    streamingAssistantContent = string.Empty;
+                    messages.Add(assistantMessage);
+                    shouldScrollMessages = true;
+                    await InvokeAsync(StateHasChanged);
+                },
+                streamingToken);
 
-        isSendingMessage = false;
-        StateHasChanged();
+            if (result.Succeeded)
+            {
+                await LoadConversationsAsync();
+            }
+            else
+            {
+                if (!userMessageReceived)
+                {
+                    messageModel.Content = content;
+                }
+
+                HandleApiError(result.Error, isConversationError: false);
+            }
+        }
+        catch (OperationCanceledException) when (streamingToken.IsCancellationRequested)
+        {
+            if (!userMessageReceived)
+            {
+                messageModel.Content = content;
+            }
+        }
+        finally
+        {
+            if (!assistantMessageReceived)
+            {
+                streamingAssistantContent = string.Empty;
+            }
+
+            isSendingMessage = false;
+            DisposeStreamingToken();
+            StateHasChanged();
+        }
     }
 
     private async Task DeleteSelectedConversationAsync()
@@ -562,10 +619,33 @@ else
         return title.Length <= 50 ? title : title[..50].Trim();
     }
 
+    private CancellationToken CreateStreamingToken()
+    {
+        DisposeStreamingToken();
+        streamingCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenSource.Token);
+        return streamingCancellationTokenSource.Token;
+    }
+
+    private void CancelStreaming()
+    {
+        if (streamingCancellationTokenSource is not null && !streamingCancellationTokenSource.IsCancellationRequested)
+        {
+            streamingCancellationTokenSource.Cancel();
+        }
+    }
+
+    private void DisposeStreamingToken()
+    {
+        streamingCancellationTokenSource?.Dispose();
+        streamingCancellationTokenSource = null;
+    }
+
     public void Dispose()
     {
         AuthState.Changed -= HandleAuthChanged;
+        CancelStreaming();
         cancellationTokenSource.Cancel();
+        DisposeStreamingToken();
         cancellationTokenSource.Dispose();
         dotNetReference?.Dispose();
     }

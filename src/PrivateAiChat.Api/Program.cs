@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Security.Claims;
+using System.Text.Json;
 using PrivateAiChat.Application.Chat;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -233,6 +234,65 @@ conversations.MapPost("/{id:guid}/messages", async (
     }
 });
 
+conversations.MapPost("/{id:guid}/messages/stream", async (
+    Guid id,
+    AddMessageRequest request,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    if (!TryValidate(request, out var validationErrors))
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await httpContext.Response.WriteAsJsonAsync(
+            new HttpValidationProblemDetails(validationErrors),
+            cancellationToken);
+        return;
+    }
+
+    httpContext.Response.Headers.CacheControl = "no-cache";
+    httpContext.Response.Headers.Connection = "keep-alive";
+    httpContext.Response.ContentType = "text/event-stream";
+
+    try
+    {
+        await foreach (var streamEvent in conversationService.AddMessageStreamingAsync(
+            userId,
+            id,
+            request,
+            httpContext.RequestAborted))
+        {
+            if (streamEvent.Type == ChatStreamEvent.NotFound)
+            {
+                httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            await WriteServerSentEventAsync(
+                httpContext.Response,
+                streamEvent,
+                httpContext.RequestAborted);
+        }
+    }
+    catch (OperationCanceledException) when (httpContext.RequestAborted.IsCancellationRequested)
+    {
+    }
+    catch (ChatCompletionException exception)
+    {
+        await WriteServerSentEventAsync(
+            httpContext.Response,
+            new ChatStreamEvent(ChatStreamEvent.Error, Content: exception.Message),
+            cancellationToken);
+    }
+});
+
 app.MapGet("/health", async (
     AppDbContext dbContext,
     IDistributedCache distributedCache,
@@ -313,4 +373,18 @@ static async Task<bool> CanUseCacheAsync(
     {
         return false;
     }
+}
+
+static async Task WriteServerSentEventAsync(
+    HttpResponse response,
+    ChatStreamEvent streamEvent,
+    CancellationToken cancellationToken)
+{
+    var payload = JsonSerializer.Serialize(
+        streamEvent,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+    await response.WriteAsync($"event: {streamEvent.Type}\n", cancellationToken);
+    await response.WriteAsync($"data: {payload}\n\n", cancellationToken);
+    await response.Body.FlushAsync(cancellationToken);
 }
