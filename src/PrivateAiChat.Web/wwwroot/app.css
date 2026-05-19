@@ -710,6 +710,141 @@ textarea {
     font-size: 0.98rem;
 }
 
+.markdown-content {
+    display: grid;
+    gap: 0.78rem;
+    min-width: 0;
+    color: var(--text);
+    font-size: 0.98rem;
+    line-height: 1.72;
+}
+
+.markdown-content > :first-child {
+    margin-top: 0;
+}
+
+.markdown-content > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre,
+.markdown-content table {
+    margin: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    display: grid;
+    gap: 0.35rem;
+    padding-left: 1.25rem;
+}
+
+.markdown-content li {
+    padding-left: 0.12rem;
+}
+
+.markdown-content a {
+    color: var(--accent-strong);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-strong) 34%, transparent);
+    transition: color 160ms ease, border-color 160ms ease;
+}
+
+.markdown-content a:hover {
+    color: var(--text);
+    border-color: currentColor;
+}
+
+.markdown-content code {
+    border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+    border-radius: 0.42rem;
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    padding: 0.12rem 0.32rem;
+    font-family: "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre code {
+    display: block;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 1.05rem;
+    overflow-x: auto;
+    color: inherit;
+    font-size: 0.88rem;
+    line-height: 1.65;
+}
+
+.markdown-code-block {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--text) 5%, var(--panel));
+}
+
+.markdown-code-block pre {
+    margin: 0;
+    padding-top: 2.15rem;
+    overflow-x: auto;
+}
+
+.markdown-code-copy {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    z-index: 1;
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--panel) 86%, transparent);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 760;
+    letter-spacing: 0.01em;
+    padding: 0.28rem 0.58rem;
+    transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.markdown-code-copy:hover {
+    border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    color: var(--text);
+}
+
+.markdown-content table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.markdown-content th {
+    background: color-mix(in srgb, var(--text) 5%, transparent);
+    font-weight: 780;
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    color: var(--muted);
+    padding-left: 0.9rem;
+}
+
 .chat-composer {
     display: grid;
     gap: 0.4rem;

@@ -5,7 +5,14 @@
         <span>@RoleLabel</span>
         <time datetime="@Message.CreatedAt.ToString("O")">@Message.CreatedAt.ToLocalTime().ToString("h:mm tt")</time>
     </div>
-    <p>@Message.Content</p>
+    @if (ShouldRenderMarkdown)
+    {
+        <MarkdownContent Content="@Message.Content" />
+    }
+    else
+    {
+        <p>@Message.Content</p>
+    }
 </article>
 
 @code {
@@ -20,4 +27,7 @@
         "Assistant" => "PrivateAiChat",
         _ => Message.Role
     };
+
+    private bool ShouldRenderMarkdown =>
+        Message.Role is "Assistant" or "System";
 }
