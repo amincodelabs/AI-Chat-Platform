@@ -253,6 +253,37 @@ textarea {
     padding: 0.9rem 1rem;
 }
 
+.chat-error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: min(100%, 760px);
+    justify-self: center;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+    color: var(--text);
+    padding: 0.85rem 0.95rem;
+    animation: message-in 160ms ease both;
+}
+
+.chat-error-banner div {
+    display: grid;
+    gap: 0.18rem;
+}
+
+.chat-error-banner strong {
+    font-size: 0.9rem;
+    font-weight: 820;
+}
+
+.chat-error-banner span {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
 .primary-button,
 .danger-button,
 .icon-button {

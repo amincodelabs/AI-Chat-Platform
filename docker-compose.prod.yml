@@ -34,6 +34,7 @@ services:
       Database__ApplyMigrations: ${PRIVATEAICHAT_APPLY_MIGRATIONS:-false}
       Ollama__BaseUrl: http://ollama:11434
       Ollama__Model: ${OLLAMA_MODEL:-llama3.2:1b}
+      Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-120}
     depends_on:
       sqlserver:
         condition: service_healthy

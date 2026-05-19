@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
+using PrivateAiChat.Api.Middleware;
 using PrivateAiChat.Application.Chat;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +12,7 @@ using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Application.DependencyInjection;
 using PrivateAiChat.Contracts.Auth;
 using PrivateAiChat.Contracts.Conversations;
+using PrivateAiChat.Contracts.Errors;
 using PrivateAiChat.Domain.Users;
 using PrivateAiChat.Infrastructure.DependencyInjection;
 using PrivateAiChat.Infrastructure.Persistence;
@@ -45,23 +47,28 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseMiddleware<RequestCorrelationMiddleware>();
+app.UseMiddleware<ApiExceptionHandlingMiddleware>();
+app.UseStatusCodePages(async statusCodeContext =>
+    await WriteStatusCodeErrorAsync(statusCodeContext.HttpContext));
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapPost("/auth/signup", async (
     SignupRequest request,
     UserManager<User> userManager,
-    SignInManager<User> signInManager) =>
+    SignInManager<User> signInManager,
+    HttpContext httpContext) =>
 {
     if (!TryValidate(request, out var validationErrors))
     {
-        return Results.ValidationProblem(validationErrors);
+        return ValidationError(httpContext, validationErrors);
     }
 
     var existingUser = await userManager.FindByEmailAsync(request.Email.Trim());
     if (existingUser is not null)
     {
-        return Results.ValidationProblem(new Dictionary<string, string[]>
+        return ValidationError(httpContext, new Dictionary<string, string[]>
         {
             [nameof(SignupRequest.Email)] = ["Email is already registered."]
         });
@@ -72,7 +79,7 @@ app.MapPost("/auth/signup", async (
 
     if (!result.Succeeded)
     {
-        return Results.ValidationProblem(ToValidationErrors(result));
+        return ValidationError(httpContext, ToValidationErrors(result));
     }
 
     await signInManager.SignInAsync(user, isPersistent: true);
@@ -84,17 +91,18 @@ app.MapPost("/auth/signup", async (
 app.MapPost("/auth/login", async (
     LoginRequest request,
     UserManager<User> userManager,
-    SignInManager<User> signInManager) =>
+    SignInManager<User> signInManager,
+    HttpContext httpContext) =>
 {
     if (!TryValidate(request, out var validationErrors))
     {
-        return Results.ValidationProblem(validationErrors);
+        return ValidationError(httpContext, validationErrors);
     }
 
     var user = await userManager.FindByEmailAsync(request.Email.Trim());
     if (user is null)
     {
-        return Results.Unauthorized();
+        return UnauthorizedError(httpContext);
     }
 
     var result = await signInManager.PasswordSignInAsync(
@@ -105,7 +113,7 @@ app.MapPost("/auth/login", async (
 
     return result.Succeeded
         ? Results.Ok(ToAuthResponse(user))
-        : Results.Unauthorized();
+        : UnauthorizedError(httpContext);
 })
 .AllowAnonymous();
 
@@ -123,16 +131,17 @@ conversations.MapPost("/", async (
     CreateConversationRequest request,
     ClaimsPrincipal principal,
     IConversationService conversationService,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!TryGetUserId(principal, out var userId))
     {
-        return Results.Unauthorized();
+        return UnauthorizedError(httpContext);
     }
 
     if (!TryValidate(request, out var validationErrors))
     {
-        return Results.ValidationProblem(validationErrors);
+        return ValidationError(httpContext, validationErrors);
     }
 
     var conversation = await conversationService.CreateConversationAsync(
@@ -146,11 +155,12 @@ conversations.MapPost("/", async (
 conversations.MapGet("/", async (
     ClaimsPrincipal principal,
     IConversationService conversationService,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!TryGetUserId(principal, out var userId))
     {
-        return Results.Unauthorized();
+        return UnauthorizedError(httpContext);
     }
 
     var userConversations = await conversationService.GetUserConversationsAsync(
@@ -164,11 +174,12 @@ conversations.MapGet("/{id:guid}", async (
     Guid id,
     ClaimsPrincipal principal,
     IConversationService conversationService,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!TryGetUserId(principal, out var userId))
     {
-        return Results.Unauthorized();
+        return UnauthorizedError(httpContext);
     }
 
     var conversation = await conversationService.GetConversationDetailsAsync(
@@ -176,18 +187,19 @@ conversations.MapGet("/{id:guid}", async (
         id,
         cancellationToken);
 
-    return conversation is null ? Results.NotFound() : Results.Ok(conversation);
+    return conversation is null ? NotFoundError(httpContext, "Conversation was not found.") : Results.Ok(conversation);
 });
 
 conversations.MapDelete("/{id:guid}", async (
     Guid id,
     ClaimsPrincipal principal,
     IConversationService conversationService,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!TryGetUserId(principal, out var userId))
     {
-        return Results.Unauthorized();
+        return UnauthorizedError(httpContext);
     }
 
     var deleted = await conversationService.DeleteConversationAsync(
@@ -195,46 +207,10 @@ conversations.MapDelete("/{id:guid}", async (
         id,
         cancellationToken);
 
-    return deleted ? Results.NoContent() : Results.NotFound();
+    return deleted ? Results.NoContent() : NotFoundError(httpContext, "Conversation was not found.");
 });
 
 conversations.MapPost("/{id:guid}/messages", async (
-    Guid id,
-    AddMessageRequest request,
-    ClaimsPrincipal principal,
-    IConversationService conversationService,
-    CancellationToken cancellationToken) =>
-{
-    if (!TryGetUserId(principal, out var userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    if (!TryValidate(request, out var validationErrors))
-    {
-        return Results.ValidationProblem(validationErrors);
-    }
-
-    try
-    {
-        var messages = await conversationService.AddMessageAsync(
-            userId,
-            id,
-            request,
-            cancellationToken);
-
-        return messages is null ? Results.NotFound() : Results.Ok(messages);
-    }
-    catch (ChatCompletionException exception)
-    {
-        return Results.Problem(
-            title: "Chat completion failed.",
-            detail: exception.Message,
-            statusCode: StatusCodes.Status502BadGateway);
-    }
-});
-
-conversations.MapPost("/{id:guid}/messages/stream", async (
     Guid id,
     AddMessageRequest request,
     ClaimsPrincipal principal,
@@ -244,16 +220,52 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
 {
     if (!TryGetUserId(principal, out var userId))
     {
-        httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return UnauthorizedError(httpContext);
+    }
+
+    if (!TryValidate(request, out var validationErrors))
+    {
+        return ValidationError(httpContext, validationErrors);
+    }
+
+    var messages = await conversationService.AddMessageAsync(
+        userId,
+        id,
+        request,
+        cancellationToken);
+
+    return messages is null ? NotFoundError(httpContext, "Conversation was not found.") : Results.Ok(messages);
+});
+
+conversations.MapPost("/{id:guid}/messages/stream", async (
+    Guid id,
+    AddMessageRequest request,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    ILogger<Program> logger,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        await WriteErrorAsync(
+            httpContext,
+            StatusCodes.Status401Unauthorized,
+            "unauthorized",
+            "Authentication is required.",
+            cancellationToken);
         return;
     }
 
     if (!TryValidate(request, out var validationErrors))
     {
-        httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await httpContext.Response.WriteAsJsonAsync(
-            new HttpValidationProblemDetails(validationErrors),
-            cancellationToken);
+        await WriteErrorAsync(
+            httpContext,
+            StatusCodes.Status400BadRequest,
+            "validation_failed",
+            "One or more validation errors occurred.",
+            cancellationToken,
+            validationErrors);
         return;
     }
 
@@ -271,7 +283,10 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
         {
             if (streamEvent.Type == ChatStreamEvent.NotFound)
             {
-                httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                await WriteServerSentEventAsync(
+                    httpContext.Response,
+                    new ChatStreamEvent(ChatStreamEvent.Error, Content: "Conversation was not found."),
+                    httpContext.RequestAborted);
                 return;
             }
 
@@ -283,12 +298,18 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
     }
     catch (OperationCanceledException) when (httpContext.RequestAborted.IsCancellationRequested)
     {
+        logger.LogInformation("Streaming chat request was cancelled by the client.");
     }
     catch (ChatCompletionException exception)
     {
+        logger.LogWarning(
+            exception,
+            "Streaming chat completion failed with code {ErrorCode}.",
+            exception.Code);
+
         await WriteServerSentEventAsync(
             httpContext.Response,
-            new ChatStreamEvent(ChatStreamEvent.Error, Content: exception.Message),
+            new ChatStreamEvent(ChatStreamEvent.Error, Content: ToSafeChatMessage(exception)),
             cancellationToken);
     }
 });
@@ -350,6 +371,96 @@ static Dictionary<string, string[]> ToValidationErrors(IdentityResult result) =>
         .ToDictionary(
             group => group.Key,
             group => group.Select(error => error.Description).ToArray());
+
+static IResult UnauthorizedError(HttpContext httpContext) =>
+    ErrorResult(
+        httpContext,
+        StatusCodes.Status401Unauthorized,
+        "unauthorized",
+        "Authentication is required.");
+
+static IResult NotFoundError(HttpContext httpContext, string message) =>
+    ErrorResult(
+        httpContext,
+        StatusCodes.Status404NotFound,
+        "not_found",
+        message);
+
+static IResult ValidationError(
+    HttpContext httpContext,
+    IReadOnlyDictionary<string, string[]> validationErrors) =>
+    ErrorResult(
+        httpContext,
+        StatusCodes.Status400BadRequest,
+        "validation_failed",
+        "One or more validation errors occurred.",
+        validationErrors);
+
+static IResult ErrorResult(
+    HttpContext httpContext,
+    int statusCode,
+    string code,
+    string message,
+    IReadOnlyDictionary<string, string[]>? errors = null) =>
+    Results.Json(
+        new ApiErrorResponse(
+            code,
+            message,
+            httpContext.TraceIdentifier,
+            errors),
+        statusCode: statusCode);
+
+static async Task WriteStatusCodeErrorAsync(HttpContext httpContext)
+{
+    if (httpContext.Response.HasStarted || httpContext.Response.ContentLength > 0)
+    {
+        return;
+    }
+
+    var (code, message) = httpContext.Response.StatusCode switch
+    {
+        StatusCodes.Status401Unauthorized => ("unauthorized", "Authentication is required."),
+        StatusCodes.Status403Forbidden => ("forbidden", "You do not have access to this resource."),
+        StatusCodes.Status404NotFound => ("not_found", "The requested resource was not found."),
+        _ => ("request_failed", "The request could not be completed.")
+    };
+
+    httpContext.Response.ContentType = "application/json";
+    await httpContext.Response.WriteAsJsonAsync(new ApiErrorResponse(
+        code,
+        message,
+        httpContext.TraceIdentifier));
+}
+
+static async Task WriteErrorAsync(
+    HttpContext httpContext,
+    int statusCode,
+    string code,
+    string message,
+    CancellationToken cancellationToken,
+    IReadOnlyDictionary<string, string[]>? errors = null)
+{
+    httpContext.Response.StatusCode = statusCode;
+    httpContext.Response.ContentType = "application/json";
+
+    await httpContext.Response.WriteAsJsonAsync(
+        new ApiErrorResponse(
+            code,
+            message,
+            httpContext.TraceIdentifier,
+            errors),
+        cancellationToken);
+}
+
+static string ToSafeChatMessage(ChatCompletionException exception) =>
+    exception.Code switch
+    {
+        "ollama_unavailable" => "The AI service is currently unavailable.",
+        "ollama_timeout" => "The AI service timed out. Please try again.",
+        "ollama_http_error" => "The AI service returned an error.",
+        "ollama_invalid_response" => "The AI service returned an invalid response.",
+        _ => "The AI response could not be completed."
+    };
 
 static async Task<bool> CanUseCacheAsync(
     IDistributedCache distributedCache,
