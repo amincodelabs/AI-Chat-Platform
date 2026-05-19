@@ -6,6 +6,10 @@ window.privateAiChatComposer = {
     }
 
     textarea.dataset.privateAiChatComposerBound = "true";
+    textarea.addEventListener("input", (event) => {
+      dotNetReference.invokeMethodAsync("UpdateComposerContent", event.target.value);
+    });
+
     textarea.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
         return;

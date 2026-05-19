@@ -187,26 +187,22 @@ else
                         }
                     </div>
 
-                    <EditForm Model="messageModel" OnValidSubmit="SendMessageAsync" class="chat-composer">
-                        <DataAnnotationsValidator />
-
+                    <div class="chat-composer">
                         <div class="composer-shell">
                             <textarea id="chat-message-input"
                                       class="message-input"
                                       placeholder="Message PrivateAiChat"
-                                      @bind="messageModel.Content"
-                                      @bind:event="oninput"
+                                      value="@messageModel.Content"
+                                      @oninput="HandleComposerInput"
                                       disabled="@isSendingMessage"></textarea>
-                            <button class="composer-send-button" type="submit" disabled="@isSendingMessage || string.IsNullOrWhiteSpace(messageModel.Content)" aria-label="Send message">
+                            <button class="composer-send-button" type="button" @onclick="SendMessageAsync" disabled="@(!CanSendMessage)" aria-label="Send message">
                                 <svg aria-hidden="true" viewBox="0 0 24 24">
                                     <path d="M12 19V5" />
                                     <path d="m5 12 7-7 7 7" />
                                 </svg>
                             </button>
                         </div>
-
-                        <ValidationMessage For="() => messageModel.Content" />
-                    </EditForm>
+                    </div>
                 }
             </div>
         </section>
@@ -285,6 +281,11 @@ else
 
     private string UserInitial =>
         (UserDisplayName.Trim().Length > 0 ? UserDisplayName.Trim()[0] : UserEmail.Trim()[0]).ToString().ToUpperInvariant();
+
+    private bool CanSendMessage =>
+        selectedConversationId is not null &&
+        !isSendingMessage &&
+        !string.IsNullOrWhiteSpace(messageModel.Content);
 
     protected override async Task OnInitializedAsync()
     {
@@ -408,9 +409,21 @@ else
     [JSInvokable]
     public Task SendMessageFromKeyboard() => SendMessageAsync();
 
+    [JSInvokable]
+    public Task UpdateComposerContent(string? content)
+    {
+        messageModel.Content = content ?? string.Empty;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleComposerInput(ChangeEventArgs args)
+    {
+        messageModel.Content = args.Value?.ToString() ?? string.Empty;
+    }
+
     private async Task SendMessageAsync()
     {
-        if (selectedConversationId is null || isSendingMessage || string.IsNullOrWhiteSpace(messageModel.Content))
+        if (!CanSendMessage || selectedConversationId is not Guid conversationId)
         {
             return;
         }
@@ -422,7 +435,7 @@ else
         StateHasChanged();
 
         var result = await ConversationApiClient.AddMessageAsync(
-            selectedConversationId.Value,
+            conversationId,
             new AddMessageRequest(content),
             cancellationTokenSource.Token);
 
