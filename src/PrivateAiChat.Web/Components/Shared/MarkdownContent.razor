@@ -1,0 +1,47 @@
+@using Markdig
+@using System.Net
+@using System.Text.RegularExpressions
+@inject IJSRuntime JsRuntime
+
+<div id="@contentId" class="markdown-content">@((MarkupString)RenderedHtml)</div>
+
+@code {
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .DisableHtml()
+        .Build();
+
+    private static readonly Regex HrefPattern = new(
+        "\\s+href=\"([^\"]*)\"",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private readonly string contentId = $"markdown-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired]
+    public string Content { get; set; } = string.Empty;
+
+    private string RenderedHtml => HrefPattern.Replace(
+        Markdown.ToHtml(Content ?? string.Empty, Pipeline),
+        match => IsSafeHref(WebUtility.HtmlDecode(match.Groups[1].Value)) ? match.Value : string.Empty);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("privateAiChatMarkdown.enhanceCodeBlocks", contentId);
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private static bool IsSafeHref(string href)
+    {
+        var normalized = href.Trim();
+        return normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("#", StringComparison.Ordinal)
+            || (normalized.StartsWith("/", StringComparison.Ordinal) && !normalized.StartsWith("//", StringComparison.Ordinal));
+    }
+}
