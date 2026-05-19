@@ -175,6 +175,33 @@ Authentication__CookieSecurePolicy=SameAsRequest
 The Blazor app reads its backend URL from `Api:BaseUrl` in `src/PrivateAiChat.Web/appsettings*.json`.
 The default local API URL is `https://localhost:7078`.
 
+## Production Docker
+
+For a production-style container stack on a single host, use the production compose file:
+
+```bash
+cp .env.example .env
+# edit .env with production values before starting
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Production compose keeps only Nginx publicly exposed on port `80`. The API, web app, SQL Server, Redis, and Ollama stay on the internal Docker network.
+
+Required production values in `.env`:
+
+- `PRIVATEAICHAT_SQL_PASSWORD`
+- `PRIVATEAICHAT_SQL_PID`
+- `PRIVATEAICHAT_APPLY_MIGRATIONS`
+- `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY`
+- `OLLAMA_MODEL`
+
+Deployment notes:
+
+- `PRIVATEAICHAT_APPLY_MIGRATIONS=false` is the safer default. Run EF Core migrations before first start or temporarily set it to `true` for initial provisioning.
+- `PRIVATEAICHAT_SQL_PID=Express` is the default in the sample file. Use a licensed edition if your deployment requires it.
+- HTTPS and certificate management are not configured yet. Keep `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY=SameAsRequest` until TLS is added.
+- The API and Web apps can also take production-specific defaults from `appsettings.Production.json`, but secrets should stay in environment variables.
+
 ## Migration
 
 Create the initial EF Core migration:
