@@ -1085,6 +1085,28 @@ textarea {
     gap: 1rem;
 }
 
+.conversation-modal {
+    width: min(100%, 520px);
+}
+
+.conversation-modal__body {
+    display: grid;
+    gap: 0.95rem;
+}
+
+.conversation-modal__copy {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding-top: 0.1rem;
+}
+
 .theme-options {
     display: grid;
     gap: 0.5rem;

@@ -40,6 +40,7 @@ public sealed class ConversationService : IConversationService
         var conversations = await _repository.GetUserConversationsAsync(userId, cancellationToken);
 
         return conversations
+            .OrderByDescending(conversation => conversation.UpdatedAt)
             .Select(ToSummaryResponse)
             .ToArray();
     }
@@ -55,6 +56,29 @@ public sealed class ConversationService : IConversationService
             cancellationToken);
 
         return conversation is null ? null : ToDetailsResponse(conversation);
+    }
+
+    public async Task<ConversationSummaryResponse?> RenameConversationAsync(
+        Guid userId,
+        Guid conversationId,
+        RenameConversationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var conversation = await _repository.GetUserConversationAsync(
+            userId,
+            conversationId,
+            cancellationToken);
+
+        if (conversation is null)
+        {
+            return null;
+        }
+
+        conversation.Rename(request.Title);
+
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        return ToSummaryResponse(conversation);
     }
 
     public async Task<bool> DeleteConversationAsync(
