@@ -4,12 +4,15 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using PrivateAiChat.Api.Middleware;
+using PrivateAiChat.Api.Health;
 using PrivateAiChat.Api.RateLimiting;
 using PrivateAiChat.Application.Chat;
+using PrivateAiChat.Infrastructure.Chat;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Application.DependencyInjection;
 using PrivateAiChat.Contracts.Auth;
@@ -26,6 +29,20 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.AddHttpClient("OllamaHealth", (serviceProvider, client) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<OllamaOptions>>()
+        .Value;
+
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddHealthChecks()
+    .AddCheck("api", () => HealthCheckResult.Healthy("API process is running."), tags: ["live", "ready"])
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
+    .AddCheck<DistributedCacheHealthCheck>("redis", tags: ["ready"])
+    .AddCheck<OllamaHealthCheck>("ollama", tags: ["ready"]);
 builder.Services.AddRateLimiter(rateLimiterOptions =>
 {
     var authOptions = GetRateLimitOptions(builder.Configuration, "RateLimiting:Auth", 5, 60);
@@ -90,10 +107,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<RequestCorrelationMiddleware>();
+app.UseAuthentication();
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ApiExceptionHandlingMiddleware>();
 app.UseStatusCodePages(async statusCodeContext =>
     await WriteStatusCodeErrorAsync(statusCodeContext.HttpContext));
-app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
@@ -366,20 +384,22 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
 })
 .RequireRateLimiting(RateLimitPolicyNames.Chat);
 
-app.MapGet("/health", async (
-    AppDbContext dbContext,
-    IDistributedCache distributedCache,
-    CancellationToken cancellationToken) =>
+app.MapHealthChecks("/health", new HealthCheckOptions
 {
-    var databaseConnected = await dbContext.Database.CanConnectAsync(cancellationToken);
-    var cacheConnected = await CanUseCacheAsync(distributedCache, cancellationToken);
+    Predicate = healthCheck => healthCheck.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync
+});
 
-    return Results.Ok(new
-    {
-        status = databaseConnected && cacheConnected ? "Healthy" : "Degraded",
-        database = databaseConnected ? "Connected" : "Unavailable",
-        cache = cacheConnected ? "Connected" : "Unavailable"
-    });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = healthCheck => healthCheck.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync
+});
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = healthCheck => healthCheck.Tags.Contains("live"),
+    ResponseWriter = HealthResponseWriter.WriteAsync
 });
 
 app.Run();
@@ -571,30 +591,6 @@ static int? GetRetryAfterSeconds(RateLimitLease lease)
     }
 
     return Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
-}
-
-static async Task<bool> CanUseCacheAsync(
-    IDistributedCache distributedCache,
-    CancellationToken cancellationToken)
-{
-    try
-    {
-        var key = $"health:{Guid.NewGuid():N}";
-        await distributedCache.SetStringAsync(
-            key,
-            "ok",
-            new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10)
-            },
-            cancellationToken);
-
-        return await distributedCache.GetStringAsync(key, cancellationToken) == "ok";
-    }
-    catch
-    {
-        return false;
-    }
 }
 
 static async Task WriteServerSentEventAsync(

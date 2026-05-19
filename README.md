@@ -30,11 +30,15 @@ Common fields are modeled on a shared base entity:
 - `DeletedAt`
 - `IsDeleted`
 
-## Health Endpoint
+## Health Checks
 
-`GET /health`
+The API exposes three health endpoints:
 
-Returns API status and checks database connectivity.
+- `GET /health` - readiness summary for the API and its dependencies
+- `GET /health/ready` - readiness probe for database, Redis, and Ollama
+- `GET /health/live` - liveness probe for the API process itself
+
+Readiness returns a JSON document with the overall status, per-check status, duration, and request ID. Liveness stays independent of external dependencies so it can be used for container restarts and basic uptime checks.
 
 ## Auth Endpoints
 
@@ -217,6 +221,24 @@ cp .env.example .env
 # edit .env with production values before starting
 docker compose -f docker-compose.prod.yml up --build -d
 ```
+
+## Logs
+
+The API writes structured request logs that include:
+
+- request path
+- status code
+- duration
+- correlation ID
+- authenticated user ID when available
+
+For local Docker, follow the API logs with:
+
+```bash
+docker compose logs -f api
+```
+
+Health checks and error responses also include the correlation/request ID so you can tie a failure back to a specific request without exposing stack traces or sensitive data.
 
 Production compose keeps only Nginx publicly exposed on port `80`. The API, web app, SQL Server, Redis, and Ollama stay on the internal Docker network.
 
