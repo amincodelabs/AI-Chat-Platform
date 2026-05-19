@@ -2,7 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using PrivateAiChat.Api.Middleware;
+using PrivateAiChat.Api.RateLimiting;
 using PrivateAiChat.Application.Chat;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -24,6 +26,46 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(rateLimiterOptions =>
+{
+    var authOptions = GetRateLimitOptions(builder.Configuration, "RateLimiting:Auth", 5, 60);
+    var chatOptions = GetRateLimitOptions(builder.Configuration, "RateLimiting:Chat", 20, 60);
+    var generalOptions = GetRateLimitOptions(builder.Configuration, "RateLimiting:General", 120, 60);
+
+    rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    rateLimiterOptions.OnRejected = async (context, cancellationToken) =>
+    {
+        var httpContext = context.HttpContext;
+        var retryAfter = GetRetryAfterSeconds(context.Lease);
+
+        if (retryAfter is not null)
+        {
+            httpContext.Response.Headers.RetryAfter = retryAfter.Value.ToString();
+        }
+
+        await WriteErrorAsync(
+            httpContext,
+            StatusCodes.Status429TooManyRequests,
+            "rate_limit_exceeded",
+            "Too many requests. Please wait before trying again.",
+            cancellationToken);
+    };
+
+    rateLimiterOptions.AddPolicy(RateLimitPolicyNames.Auth, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"auth:{GetClientPartition(httpContext, preferUser: false)}",
+            _ => ToFixedWindowOptions(authOptions)));
+
+    rateLimiterOptions.AddPolicy(RateLimitPolicyNames.Chat, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"chat:{GetClientPartition(httpContext, preferUser: true)}",
+            _ => ToFixedWindowOptions(chatOptions)));
+
+    rateLimiterOptions.AddPolicy(RateLimitPolicyNames.General, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"general:{GetClientPartition(httpContext, preferUser: true)}",
+            _ => ToFixedWindowOptions(generalOptions)));
+});
 
 var dataProtectionKeysPath = "/home/app/.aspnet/DataProtection-Keys";
 Directory.CreateDirectory(dataProtectionKeysPath);
@@ -53,6 +95,7 @@ app.UseStatusCodePages(async statusCodeContext =>
     await WriteStatusCodeErrorAsync(statusCodeContext.HttpContext));
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapPost("/auth/signup", async (
     SignupRequest request,
@@ -86,7 +129,8 @@ app.MapPost("/auth/signup", async (
 
     return Results.Ok(ToAuthResponse(user));
 })
-.AllowAnonymous();
+.AllowAnonymous()
+.RequireRateLimiting(RateLimitPolicyNames.Auth);
 
 app.MapPost("/auth/login", async (
     LoginRequest request,
@@ -115,14 +159,16 @@ app.MapPost("/auth/login", async (
         ? Results.Ok(ToAuthResponse(user))
         : UnauthorizedError(httpContext);
 })
-.AllowAnonymous();
+.AllowAnonymous()
+.RequireRateLimiting(RateLimitPolicyNames.Auth);
 
 app.MapPost("/auth/logout", async (SignInManager<User> signInManager) =>
 {
     await signInManager.SignOutAsync();
     return Results.NoContent();
 })
-.RequireAuthorization();
+.RequireAuthorization()
+.RequireRateLimiting(RateLimitPolicyNames.Auth);
 
 var conversations = app.MapGroup("/api/conversations")
     .RequireAuthorization();
@@ -150,7 +196,8 @@ conversations.MapPost("/", async (
         cancellationToken);
 
     return Results.Created($"/api/conversations/{conversation.Id}", conversation);
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.Chat);
 
 conversations.MapGet("/", async (
     ClaimsPrincipal principal,
@@ -168,7 +215,8 @@ conversations.MapGet("/", async (
         cancellationToken);
 
     return Results.Ok(userConversations);
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.General);
 
 conversations.MapGet("/{id:guid}", async (
     Guid id,
@@ -188,7 +236,8 @@ conversations.MapGet("/{id:guid}", async (
         cancellationToken);
 
     return conversation is null ? NotFoundError(httpContext, "Conversation was not found.") : Results.Ok(conversation);
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.General);
 
 conversations.MapDelete("/{id:guid}", async (
     Guid id,
@@ -208,7 +257,8 @@ conversations.MapDelete("/{id:guid}", async (
         cancellationToken);
 
     return deleted ? Results.NoContent() : NotFoundError(httpContext, "Conversation was not found.");
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.General);
 
 conversations.MapPost("/{id:guid}/messages", async (
     Guid id,
@@ -235,7 +285,8 @@ conversations.MapPost("/{id:guid}/messages", async (
         cancellationToken);
 
     return messages is null ? NotFoundError(httpContext, "Conversation was not found.") : Results.Ok(messages);
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.Chat);
 
 conversations.MapPost("/{id:guid}/messages/stream", async (
     Guid id,
@@ -312,7 +363,8 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
             new ChatStreamEvent(ChatStreamEvent.Error, Content: ToSafeChatMessage(exception)),
             cancellationToken);
     }
-});
+})
+.RequireRateLimiting(RateLimitPolicyNames.Chat);
 
 app.MapGet("/health", async (
     AppDbContext dbContext,
@@ -461,6 +513,65 @@ static string ToSafeChatMessage(ChatCompletionException exception) =>
         "ollama_invalid_response" => "The AI service returned an invalid response.",
         _ => "The AI response could not be completed."
     };
+
+static RateLimitPolicyOptions GetRateLimitOptions(
+    IConfiguration configuration,
+    string sectionName,
+    int defaultPermitLimit,
+    int defaultWindowSeconds)
+{
+    var options = new RateLimitPolicyOptions
+    {
+        PermitLimit = defaultPermitLimit,
+        WindowSeconds = defaultWindowSeconds
+    };
+
+    configuration.GetSection(sectionName).Bind(options);
+    options.PermitLimit = Math.Max(1, options.PermitLimit);
+    options.WindowSeconds = Math.Max(1, options.WindowSeconds);
+
+    return options;
+}
+
+static FixedWindowRateLimiterOptions ToFixedWindowOptions(RateLimitPolicyOptions options) =>
+    new()
+    {
+        PermitLimit = options.PermitLimit,
+        Window = TimeSpan.FromSeconds(options.WindowSeconds),
+        QueueLimit = 0,
+        AutoReplenishment = true
+    };
+
+static string GetClientPartition(HttpContext httpContext, bool preferUser)
+{
+    if (preferUser)
+    {
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return $"user:{userId}";
+        }
+    }
+
+    var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+    var ipAddress = forwardedFor?.Split(',').FirstOrDefault()?.Trim();
+    if (string.IsNullOrWhiteSpace(ipAddress))
+    {
+        ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    return string.IsNullOrWhiteSpace(ipAddress) ? "unknown" : $"ip:{ipAddress}";
+}
+
+static int? GetRetryAfterSeconds(RateLimitLease lease)
+{
+    if (!lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+    {
+        return null;
+    }
+
+    return Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+}
 
 static async Task<bool> CanUseCacheAsync(
     IDistributedCache distributedCache,

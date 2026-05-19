@@ -35,6 +35,12 @@ services:
       Ollama__BaseUrl: http://ollama:11434
       Ollama__Model: ${OLLAMA_MODEL:-llama3.2:1b}
       Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-120}
+      RateLimiting__Auth__PermitLimit: ${RATE_LIMIT_AUTH_PERMIT_LIMIT:-5}
+      RateLimiting__Auth__WindowSeconds: ${RATE_LIMIT_AUTH_WINDOW_SECONDS:-60}
+      RateLimiting__Chat__PermitLimit: ${RATE_LIMIT_CHAT_PERMIT_LIMIT:-20}
+      RateLimiting__Chat__WindowSeconds: ${RATE_LIMIT_CHAT_WINDOW_SECONDS:-60}
+      RateLimiting__General__PermitLimit: ${RATE_LIMIT_GENERAL_PERMIT_LIMIT:-120}
+      RateLimiting__General__WindowSeconds: ${RATE_LIMIT_GENERAL_WINDOW_SECONDS:-60}
     depends_on:
       sqlserver:
         condition: service_healthy
