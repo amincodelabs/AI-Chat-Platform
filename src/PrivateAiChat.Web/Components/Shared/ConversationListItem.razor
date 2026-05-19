@@ -3,7 +3,8 @@
 <button class="conversation-item @(IsSelected ? "conversation-item--active" : null)"
         type="button"
         @onclick="OnSelected">
-    <span>@DisplayTitle</span>
+    <span class="conversation-item__title">@DisplayTitle</span>
+    <span class="conversation-item__preview">Private chat thread</span>
     <time datetime="@Conversation.UpdatedAt.ToString("O")">@Conversation.UpdatedAt.ToLocalTime().ToString("MMM d")</time>
 </button>
 
