@@ -159,7 +159,7 @@ else
                 }
                 else
                 {
-                    <div class="chat-panel__messages" aria-live="polite">
+                    <div id="chat-message-list" class="chat-panel__messages" aria-live="polite">
                         @if (messages.Count == 0)
                         {
                             <section class="chat-empty chat-empty--compact">
@@ -179,7 +179,7 @@ else
                         {
                             <article class="message-bubble message-bubble--assistant message-bubble--loading">
                                 <div class="message-bubble__meta">
-                                    <span>Assistant</span>
+                                    <span>PrivateAiChat</span>
                                     <time>Thinking</time>
                                 </div>
                                 <TypingIndicator Label="Thinking" />
@@ -268,6 +268,8 @@ else
     private bool isSettingsOpen;
     private bool isLoggingOut;
     private bool isComposerBound;
+    private bool shouldScrollMessages;
+    private int renderedMessageCount;
     private string? conversationError;
     private string? messageError;
     private DotNetObjectReference<Chat>? dotNetReference;
@@ -301,23 +303,41 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (selectedConversation is null || isComposerBound)
+        if (selectedConversation is null)
         {
             return;
         }
 
-        try
+        if (!isComposerBound)
         {
-            dotNetReference ??= DotNetObjectReference.Create(this);
-            await JsRuntime.InvokeVoidAsync(
-                "privateAiChatComposer.bind",
-                "chat-message-input",
-                dotNetReference);
-            isComposerBound = true;
+            try
+            {
+                dotNetReference ??= DotNetObjectReference.Create(this);
+                await JsRuntime.InvokeVoidAsync(
+                    "privateAiChatComposer.bind",
+                    "chat-message-input",
+                    dotNetReference);
+                isComposerBound = true;
+            }
+            catch
+            {
+                isComposerBound = false;
+            }
         }
-        catch
+
+        if (shouldScrollMessages || renderedMessageCount != messages.Count || isSendingMessage)
         {
-            isComposerBound = false;
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("privateAiChatComposer.scrollToBottom", "chat-message-list");
+                await JsRuntime.InvokeVoidAsync("privateAiChatComposer.resize", "chat-message-input");
+                renderedMessageCount = messages.Count;
+                shouldScrollMessages = false;
+            }
+            catch
+            {
+                shouldScrollMessages = true;
+            }
         }
     }
 
@@ -396,6 +416,7 @@ else
         {
             selectedConversation = result.Value;
             messages.AddRange(result.Value.Messages.OrderBy(message => message.CreatedAt));
+            shouldScrollMessages = true;
         }
         else
         {
@@ -432,6 +453,7 @@ else
         messageError = null;
         var content = messageModel.Content.Trim();
         messageModel = new MessageFormModel();
+        shouldScrollMessages = true;
         StateHasChanged();
 
         var result = await ConversationApiClient.AddMessageAsync(
@@ -446,6 +468,7 @@ else
             selectedConversation = selectedConversation is null
                 ? selectedConversation
                 : selectedConversation with { Title = BuildConversationTitle(content) };
+            shouldScrollMessages = true;
             await LoadConversationsAsync();
         }
         else

@@ -5,8 +5,14 @@ window.privateAiChatComposer = {
       return;
     }
 
+    const resize = () => {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 168)}px`;
+    };
+
     textarea.dataset.privateAiChatComposerBound = "true";
     textarea.addEventListener("input", (event) => {
+      resize();
       dotNetReference.invokeMethodAsync("UpdateComposerContent", event.target.value);
     });
 
@@ -17,6 +23,28 @@ window.privateAiChatComposer = {
 
       event.preventDefault();
       dotNetReference.invokeMethodAsync("SendMessageFromKeyboard");
+    });
+
+    resize();
+  },
+  resize: (textareaId) => {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 168)}px`;
+  },
+  scrollToBottom: (elementId) => {
+    const element = document.getElementById(elementId);
+    if (!element) {
+      return;
+    }
+
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: "smooth"
     });
   }
 };
