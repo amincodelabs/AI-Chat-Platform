@@ -103,6 +103,31 @@ ollama serve
 ollama pull llama3.2
 ```
 
+## Rate Limiting
+
+The API uses named ASP.NET Core rate-limiting policies configured from `RateLimiting`:
+
+```json
+"RateLimiting": {
+  "Auth": {
+    "PermitLimit": 5,
+    "WindowSeconds": 60
+  },
+  "Chat": {
+    "PermitLimit": 20,
+    "WindowSeconds": 60
+  },
+  "General": {
+    "PermitLimit": 120,
+    "WindowSeconds": 60
+  }
+}
+```
+
+Auth endpoints use the strict `Auth` policy, message creation and streaming use `Chat`, and conversation reads/deletes use `General`. Health checks are not rate-limited.
+
+The current implementation uses ASP.NET Core's in-process fixed-window limiter. It is safe for a single API instance and keeps named policy boundaries so a Redis-backed distributed limiter can replace it later for multiple API replicas.
+
 ## Blazor Web
 
 Run the API first:
@@ -171,6 +196,12 @@ ConnectionStrings__Redis=redis:6379
 Database__ApplyMigrations=true
 Ollama__BaseUrl=http://ollama:11434
 Ollama__TimeoutSeconds=120
+RateLimiting__Auth__PermitLimit=5
+RateLimiting__Auth__WindowSeconds=60
+RateLimiting__Chat__PermitLimit=20
+RateLimiting__Chat__WindowSeconds=60
+RateLimiting__General__PermitLimit=120
+RateLimiting__General__WindowSeconds=60
 Authentication__CookieSecurePolicy=SameAsRequest
 ```
 

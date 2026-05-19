@@ -18,13 +18,16 @@ public static class ApiErrorParser
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(content))
         {
-            return response.StatusCode switch
+            var message = response.StatusCode switch
             {
                 HttpStatusCode.Unauthorized => "Authentication is required.",
                 HttpStatusCode.Forbidden => "You do not have access to this resource.",
                 HttpStatusCode.NotFound => "The requested resource was not found.",
+                HttpStatusCode.TooManyRequests => "Too many requests. Please wait before trying again.",
                 _ => $"The API returned {(int)response.StatusCode}."
             };
+
+            return AppendRetryAfter(response, message);
         }
 
         try
@@ -44,6 +47,8 @@ public static class ApiErrorParser
             }
 
             var requestId = TryGetString(root, "requestId");
+            message = AppendRetryAfter(response, message);
+
             return string.IsNullOrWhiteSpace(requestId)
                 ? message
                 : $"{message} Request ID: {requestId}";
@@ -74,5 +79,30 @@ public static class ApiErrorParser
             .Where(error => !string.IsNullOrWhiteSpace(error))
             .Select(error => error!)
             .ToArray();
+    }
+
+    private static string AppendRetryAfter(HttpResponseMessage response, string message)
+    {
+        if (response.StatusCode is not HttpStatusCode.TooManyRequests)
+        {
+            return message;
+        }
+
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is not null)
+        {
+            return $"{message} Try again in {Math.Max(1, (int)Math.Ceiling(retryAfter.Delta.Value.TotalSeconds))} seconds.";
+        }
+
+        if (retryAfter?.Date is not null)
+        {
+            var seconds = (int)Math.Ceiling((retryAfter.Date.Value - DateTimeOffset.UtcNow).TotalSeconds);
+            if (seconds > 0)
+            {
+                return $"{message} Try again in {seconds} seconds.";
+            }
+        }
+
+        return message;
     }
 }
