@@ -2,6 +2,8 @@ using PrivateAiChat.Application.Chat;
 using PrivateAiChat.Contracts.Conversations;
 using PrivateAiChat.Domain.Conversations;
 using PrivateAiChat.Domain.Messages;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace PrivateAiChat.Application.Conversations;
 
@@ -115,6 +117,73 @@ public sealed class ConversationService : IConversationService
         return new AddMessageResponse(
             ToMessageResponse(message),
             ToMessageResponse(assistantMessage));
+    }
+
+    public async IAsyncEnumerable<ChatStreamEvent> AddMessageStreamingAsync(
+        Guid userId,
+        Guid conversationId,
+        AddMessageRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var conversation = await _repository.GetUserConversationWithMessagesAsync(
+            userId,
+            conversationId,
+            cancellationToken);
+
+        if (conversation is null)
+        {
+            yield return new ChatStreamEvent(ChatStreamEvent.NotFound);
+            yield break;
+        }
+
+        var message = new Message(conversation.Id, MessageRole.User, request.Content);
+        conversation.Touch();
+        conversation.RenameFromMessage(message.Content);
+
+        await _repository.AddMessageAsync(message, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        yield return new ChatStreamEvent(
+            ChatStreamEvent.UserMessage,
+            Message: ToMessageResponse(message));
+
+        var history = conversation.Messages
+            .OrderBy(existingMessage => existingMessage.CreatedAt)
+            .Append(message)
+            .Select(ToChatCompletionMessage)
+            .ToArray();
+
+        var assistantContent = new StringBuilder();
+
+        await foreach (var chunk in _chatCompletionService.StreamAsync(history, cancellationToken)
+            .WithCancellation(cancellationToken))
+        {
+            if (string.IsNullOrEmpty(chunk))
+            {
+                continue;
+            }
+
+            assistantContent.Append(chunk);
+            yield return new ChatStreamEvent(
+                ChatStreamEvent.AssistantChunk,
+                Content: chunk);
+        }
+
+        var finalContent = assistantContent.ToString().Trim();
+        if (string.IsNullOrWhiteSpace(finalContent))
+        {
+            throw new ChatCompletionException("Ollama returned an empty assistant response.");
+        }
+
+        var assistantMessage = new Message(conversation.Id, MessageRole.Assistant, finalContent);
+        conversation.Touch();
+
+        await _repository.AddMessageAsync(assistantMessage, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        yield return new ChatStreamEvent(
+            ChatStreamEvent.AssistantMessage,
+            Message: ToMessageResponse(assistantMessage));
     }
 
     private static ConversationSummaryResponse ToSummaryResponse(Conversation conversation) =>

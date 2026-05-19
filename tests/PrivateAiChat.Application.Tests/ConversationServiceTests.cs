@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using PrivateAiChat.Application.Chat;
 using PrivateAiChat.Application.Conversations;
 using PrivateAiChat.Contracts.Conversations;
@@ -69,6 +70,41 @@ public sealed class ConversationServiceTests
         Assert.Equal("Hello", chatCompletion.Messages.Single().Content);
     }
 
+    [Fact]
+    public async Task AddMessageStreamingAsync_Streams_And_Saves_Assistant_Message_When_Conversation_Is_UserOwned()
+    {
+        var repository = new FakeConversationRepository();
+        var userId = Guid.NewGuid();
+        var conversation = new Conversation(userId, "Owned");
+        repository.Conversations.Add(conversation);
+        var chatCompletion = new FakeChatCompletionService("Assistant reply");
+        var service = new ConversationService(repository, chatCompletion);
+        var events = new List<ChatStreamEvent>();
+
+        await foreach (var streamEvent in service.AddMessageStreamingAsync(
+            userId,
+            conversation.Id,
+            new AddMessageRequest("Hello"),
+            CancellationToken.None))
+        {
+            events.Add(streamEvent);
+        }
+
+        Assert.Collection(
+            events,
+            streamEvent => Assert.Equal(ChatStreamEvent.UserMessage, streamEvent.Type),
+            streamEvent =>
+            {
+                Assert.Equal(ChatStreamEvent.AssistantChunk, streamEvent.Type);
+                Assert.Equal("Assistant reply", streamEvent.Content);
+            },
+            streamEvent => Assert.Equal(ChatStreamEvent.AssistantMessage, streamEvent.Type));
+        Assert.Equal(2, repository.Messages.Count);
+        Assert.Equal(MessageRole.Assistant, repository.Messages.Last().Role);
+        Assert.Equal("Assistant reply", repository.Messages.Last().Content);
+        Assert.Equal(2, repository.SaveChangesCount);
+    }
+
     private sealed class FakeConversationRepository : IConversationRepository
     {
         public List<Conversation> Conversations { get; } = new();
@@ -138,6 +174,15 @@ public sealed class ConversationServiceTests
         {
             Messages = messages;
             return Task.FromResult(_response);
+        }
+
+        public async IAsyncEnumerable<string> StreamAsync(
+            IReadOnlyCollection<ChatCompletionMessage> messages,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Messages = messages;
+            await Task.Yield();
+            yield return _response;
         }
     }
 }

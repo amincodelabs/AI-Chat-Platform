@@ -28,4 +28,10 @@ public interface IConversationService
         Guid conversationId,
         AddMessageRequest request,
         CancellationToken cancellationToken);
+
+    IAsyncEnumerable<ChatStreamEvent> AddMessageStreamingAsync(
+        Guid userId,
+        Guid conversationId,
+        AddMessageRequest request,
+        CancellationToken cancellationToken);
 }

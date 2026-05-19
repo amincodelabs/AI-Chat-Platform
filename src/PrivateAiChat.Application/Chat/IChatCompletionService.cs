@@ -5,4 +5,8 @@ public interface IChatCompletionService
     Task<string> CompleteAsync(
         IReadOnlyCollection<ChatCompletionMessage> messages,
         CancellationToken cancellationToken);
+
+    IAsyncEnumerable<string> StreamAsync(
+        IReadOnlyCollection<ChatCompletionMessage> messages,
+        CancellationToken cancellationToken);
 }

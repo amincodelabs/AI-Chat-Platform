@@ -63,6 +63,80 @@ public sealed class ConversationApiClient : IDisposable
         return await ReadResponseAsync<AddMessageResponse>(response, cancellationToken);
     }
 
+    public async Task<ApiResult> AddMessageStreamingAsync(
+        Guid conversationId,
+        AddMessageRequest request,
+        Func<MessageResponse, Task> onUserMessage,
+        Func<string, Task> onAssistantChunk,
+        Func<MessageResponse, Task> onAssistantMessage,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"api/conversations/{conversationId}/messages/stream")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        using var response = await _httpClient.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return ApiResult.Failure(await ReadErrorAsync(response, cancellationToken));
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+
+        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            ChatStreamEvent? streamEvent;
+            try
+            {
+                streamEvent = JsonSerializer.Deserialize<ChatStreamEvent>(
+                    line["data: ".Length..],
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+            catch (JsonException)
+            {
+                return ApiResult.Failure("The API returned an invalid streaming response.");
+            }
+
+            if (streamEvent is null)
+            {
+                continue;
+            }
+
+            switch (streamEvent.Type)
+            {
+                case ChatStreamEvent.UserMessage when streamEvent.Message is not null:
+                    await onUserMessage(streamEvent.Message);
+                    break;
+                case ChatStreamEvent.AssistantChunk when streamEvent.Content is not null:
+                    await onAssistantChunk(streamEvent.Content);
+                    break;
+                case ChatStreamEvent.AssistantMessage when streamEvent.Message is not null:
+                    await onAssistantMessage(streamEvent.Message);
+                    break;
+                case ChatStreamEvent.NotFound:
+                    return ApiResult.Failure("Conversation was not found.");
+                case ChatStreamEvent.Error:
+                    return ApiResult.Failure(streamEvent.Content ?? "The streaming response failed.");
+            }
+        }
+
+        return ApiResult.Success();
+    }
+
     public async Task<ApiResult> DeleteConversationAsync(Guid id, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.DeleteAsync($"api/conversations/{id}", cancellationToken);
