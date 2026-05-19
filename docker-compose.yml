@@ -1,4 +1,24 @@
 services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    ports:
+      - "${PRIVATEAICHAT_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - privateaichat
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   api:
     build:
       context: .
@@ -19,8 +39,6 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
-    ports:
-      - "${PRIVATEAICHAT_API_PORT:-5081}:8080"
     networks:
       - privateaichat
     volumes:
@@ -43,8 +61,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "${PRIVATEAICHAT_WEB_PORT:-5080}:8080"
     networks:
       - privateaichat
     volumes:
@@ -65,8 +81,6 @@ services:
       MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123}
     volumes:
       - sqlserver-data:/var/opt/mssql
-    ports:
-      - "127.0.0.1:${PRIVATEAICHAT_SQL_PORT:-14333}:1433"
     networks:
       - privateaichat
     healthcheck:
