@@ -18,6 +18,12 @@ public interface IConversationService
         Guid conversationId,
         CancellationToken cancellationToken);
 
+    Task<ConversationSummaryResponse?> RenameConversationAsync(
+        Guid userId,
+        Guid conversationId,
+        RenameConversationRequest request,
+        CancellationToken cancellationToken);
+
     Task<bool> DeleteConversationAsync(
         Guid userId,
         Guid conversationId,

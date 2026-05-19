@@ -43,6 +43,47 @@ public sealed class ConversationServiceTests
     }
 
     [Fact]
+    public async Task RenameConversationAsync_Renames_UserOwned_Conversation()
+    {
+        var repository = new FakeConversationRepository();
+        var userId = Guid.NewGuid();
+        var conversation = new Conversation(userId, "Original");
+        repository.Conversations.Add(conversation);
+        var service = new ConversationService(repository, new FakeChatCompletionService());
+
+        var result = await service.RenameConversationAsync(
+            userId,
+            conversation.Id,
+            new RenameConversationRequest(" Renamed chat "),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("Renamed chat", result.Title);
+        Assert.Equal("Renamed chat", conversation.Title);
+        Assert.Equal(1, repository.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task RenameConversationAsync_Returns_Null_When_Conversation_Is_Not_UserOwned()
+    {
+        var repository = new FakeConversationRepository();
+        var ownerId = Guid.NewGuid();
+        var conversation = new Conversation(ownerId, "Original");
+        repository.Conversations.Add(conversation);
+        var service = new ConversationService(repository, new FakeChatCompletionService());
+
+        var result = await service.RenameConversationAsync(
+            Guid.NewGuid(),
+            conversation.Id,
+            new RenameConversationRequest("Renamed chat"),
+            CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Equal("Original", conversation.Title);
+        Assert.Equal(0, repository.SaveChangesCount);
+    }
+
+    [Fact]
     public async Task AddMessageAsync_Adds_User_And_Assistant_Messages_When_Conversation_Is_UserOwned()
     {
         var repository = new FakeConversationRepository();
@@ -68,6 +109,25 @@ public sealed class ConversationServiceTests
         Assert.Equal(2, repository.SaveChangesCount);
         Assert.Equal("user", chatCompletion.Messages.Single().Role);
         Assert.Equal("Hello", chatCompletion.Messages.Single().Content);
+    }
+
+    [Fact]
+    public async Task AddMessageAsync_Generates_Title_From_First_User_Message()
+    {
+        var repository = new FakeConversationRepository();
+        var userId = Guid.NewGuid();
+        var conversation = new Conversation(userId);
+        repository.Conversations.Add(conversation);
+        var service = new ConversationService(repository, new FakeChatCompletionService());
+
+        var result = await service.AddMessageAsync(
+            userId,
+            conversation.Id,
+            new AddMessageRequest("One two three four five six seven eight nine ten"),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("One two three four five six seven eight", conversation.Title);
     }
 
     [Fact]

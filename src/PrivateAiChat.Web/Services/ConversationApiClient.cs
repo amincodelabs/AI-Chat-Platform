@@ -52,6 +52,20 @@ public sealed class ConversationApiClient : IDisposable
             return await ReadResponseAsync<ConversationSummaryResponse>(response, cancellationToken);
         }, cancellationToken);
 
+    public Task<ApiResult<ConversationSummaryResponse>> RenameConversationAsync(
+        Guid id,
+        RenameConversationRequest request,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.PutAsJsonAsync(
+                $"api/conversations/{id}",
+                request,
+                cancellationToken);
+
+            return await ReadResponseAsync<ConversationSummaryResponse>(response, cancellationToken);
+        }, cancellationToken);
+
     public Task<ApiResult<AddMessageResponse>> AddMessageAsync(
         Guid conversationId,
         AddMessageRequest request,

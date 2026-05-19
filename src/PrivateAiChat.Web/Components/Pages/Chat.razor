@@ -59,8 +59,8 @@ else
                 else if (conversations.Count == 0)
                 {
                     <div class="state-block state-block--flat">
-                        <p class="state-title">No conversations</p>
-                        <p class="state-copy">Start a new chat to build your history.</p>
+                        <p class="state-title">No conversations yet</p>
+                        <p class="state-copy">Start a chat and your recent conversations will appear here.</p>
                     </div>
                 }
                 else
@@ -124,7 +124,10 @@ else
                     </button>
                     @if (selectedConversationId is not null)
                     {
-                        <button class="danger-button" type="button" @onclick="DeleteSelectedConversationAsync" disabled="@isDeletingConversation">
+                        <button class="quiet-button" type="button" @onclick="OpenRenameModal" disabled="@isSendingMessage">
+                            Rename
+                        </button>
+                        <button class="danger-button" type="button" @onclick="OpenDeleteModal" disabled="@isDeletingConversation">
                             @(isDeletingConversation ? "Deleting..." : "Delete")
                         </button>
                     }
@@ -258,6 +261,84 @@ else
                 </section>
             </div>
         }
+
+        @if (isRenameModalOpen)
+        {
+            <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+                <button class="settings-modal__backdrop" type="button" @onclick="CloseRenameModal" aria-label="Close rename dialog"></button>
+
+                <section class="settings-panel conversation-modal">
+                    <header class="settings-panel__header">
+                        <div>
+                            <p class="eyebrow">Conversation</p>
+                            <h2 id="rename-title">Rename chat</h2>
+                        </div>
+
+                        <button class="icon-only" type="button" @onclick="CloseRenameModal" aria-label="Close rename dialog" disabled="@isRenamingConversation">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </header>
+
+                    <div class="conversation-modal__body">
+                        <label class="field">
+                            <span>Title</span>
+                            <input class="text-input"
+                                   maxlength="200"
+                                   value="@renameTitle"
+                                   @oninput="HandleRenameTitleInput"
+                                   disabled="@isRenamingConversation" />
+                        </label>
+
+                        @if (!string.IsNullOrWhiteSpace(renameError))
+                        {
+                            <div class="form-alert">@renameError</div>
+                        }
+
+                        <div class="modal-actions">
+                            <button class="quiet-button" type="button" @onclick="CloseRenameModal" disabled="@isRenamingConversation">Cancel</button>
+                            <button class="primary-button" type="button" @onclick="RenameSelectedConversationAsync" disabled="@(!CanRenameConversation)">
+                                @(isRenamingConversation ? "Saving..." : "Save")
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        }
+
+        @if (isDeleteModalOpen)
+        {
+            <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+                <button class="settings-modal__backdrop" type="button" @onclick="CloseDeleteModal" aria-label="Close delete confirmation"></button>
+
+                <section class="settings-panel conversation-modal">
+                    <header class="settings-panel__header">
+                        <div>
+                            <p class="eyebrow">Delete</p>
+                            <h2 id="delete-title">Delete this chat?</h2>
+                        </div>
+
+                        <button class="icon-only" type="button" @onclick="CloseDeleteModal" aria-label="Close delete confirmation" disabled="@isDeletingConversation">
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </header>
+
+                    <div class="conversation-modal__body">
+                        <p class="conversation-modal__copy">This conversation and its messages will be removed from your workspace.</p>
+
+                        <div class="modal-actions">
+                            <button class="quiet-button" type="button" @onclick="CloseDeleteModal" disabled="@isDeletingConversation">Cancel</button>
+                            <button class="danger-button" type="button" @onclick="DeleteSelectedConversationAsync" disabled="@isDeletingConversation">
+                                @(isDeletingConversation ? "Deleting..." : "Delete")
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        }
     </section>
 }
 
@@ -282,11 +363,16 @@ else
     private bool isSendingMessage;
     private bool isDrawerOpen;
     private bool isSettingsOpen;
+    private bool isRenameModalOpen;
+    private bool isDeleteModalOpen;
+    private bool isRenamingConversation;
     private bool isLoggingOut;
     private bool isComposerBound;
     private bool shouldScrollMessages;
     private int renderedMessageCount;
     private string streamingAssistantContent = string.Empty;
+    private string renameTitle = string.Empty;
+    private string? renameError;
     private string? conversationError;
     private string? messageError;
     private CancellationTokenSource? streamingCancellationTokenSource;
@@ -306,6 +392,12 @@ else
         selectedConversationId is not null &&
         !isSendingMessage &&
         !string.IsNullOrWhiteSpace(messageModel.Content);
+
+    private bool CanRenameConversation =>
+        selectedConversationId is not null &&
+        !isRenamingConversation &&
+        !string.IsNullOrWhiteSpace(renameTitle) &&
+        renameTitle.Trim().Length <= 200;
 
     protected override async Task OnInitializedAsync()
     {
@@ -368,6 +460,49 @@ else
     private void OpenSettings() => isSettingsOpen = true;
 
     private void CloseSettings() => isSettingsOpen = false;
+
+    private void OpenRenameModal()
+    {
+        if (selectedConversation is null)
+        {
+            return;
+        }
+
+        renameTitle = GetTitle(selectedConversation.Title);
+        renameError = null;
+        isRenameModalOpen = true;
+    }
+
+    private void CloseRenameModal()
+    {
+        if (isRenamingConversation)
+        {
+            return;
+        }
+
+        isRenameModalOpen = false;
+        renameError = null;
+    }
+
+    private void OpenDeleteModal()
+    {
+        if (selectedConversationId is null)
+        {
+            return;
+        }
+
+        isDeleteModalOpen = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        if (isDeletingConversation)
+        {
+            return;
+        }
+
+        isDeleteModalOpen = false;
+    }
 
     private void ClearMessageError() => messageError = null;
 
@@ -464,6 +599,12 @@ else
         messageModel.Content = args.Value?.ToString() ?? string.Empty;
     }
 
+    private void HandleRenameTitleInput(ChangeEventArgs args)
+    {
+        renameTitle = args.Value?.ToString() ?? string.Empty;
+        renameError = null;
+    }
+
     private async Task SendMessageAsync()
     {
         if (!CanSendMessage || selectedConversationId is not Guid conversationId)
@@ -492,7 +633,7 @@ else
                 {
                     userMessageReceived = true;
                     messages.Add(userMessage);
-                    selectedConversation = selectedConversation is null
+                    selectedConversation = selectedConversation is null || !ShouldAutoTitle(selectedConversation.Title)
                         ? selectedConversation
                         : selectedConversation with { Title = BuildConversationTitle(content) };
                     shouldScrollMessages = true;
@@ -555,18 +696,9 @@ else
             return;
         }
 
-        var confirmed = await JsRuntime.InvokeAsync<bool>(
-            "confirm",
-            cancellationTokenSource.Token,
-            "Delete this conversation?");
-
-        if (!confirmed)
-        {
-            return;
-        }
-
         isDeletingConversation = true;
         messageError = null;
+        conversationError = null;
 
         var result = await ConversationApiClient.DeleteConversationAsync(
             selectedConversationId.Value,
@@ -578,6 +710,8 @@ else
             selectedConversation = null;
             selectedConversationId = null;
             messages.Clear();
+            isDeleteModalOpen = false;
+            await LoadConversationsAsync();
         }
         else
         {
@@ -585,6 +719,51 @@ else
         }
 
         isDeletingConversation = false;
+        StateHasChanged();
+    }
+
+    private async Task RenameSelectedConversationAsync()
+    {
+        if (!CanRenameConversation || selectedConversationId is not Guid conversationId)
+        {
+            return;
+        }
+
+        var title = renameTitle.Trim();
+        if (title.Length > 200)
+        {
+            renameError = "Title must be 200 characters or fewer.";
+            return;
+        }
+
+        isRenamingConversation = true;
+        renameError = null;
+        messageError = null;
+
+        var result = await ConversationApiClient.RenameConversationAsync(
+            conversationId,
+            new RenameConversationRequest(title),
+            cancellationTokenSource.Token);
+
+        if (result.Succeeded && result.Value is not null)
+        {
+            selectedConversation = selectedConversation is null
+                ? selectedConversation
+                : selectedConversation with
+                {
+                    Title = result.Value.Title,
+                    UpdatedAt = result.Value.UpdatedAt
+                };
+
+            UpsertConversation(result.Value);
+            isRenameModalOpen = false;
+        }
+        else
+        {
+            renameError = result.Error ?? "The conversation could not be renamed.";
+        }
+
+        isRenamingConversation = false;
         StateHasChanged();
     }
 
@@ -625,8 +804,34 @@ else
 
     private static string BuildConversationTitle(string content)
     {
-        var title = content.Trim().ReplaceLineEndings(" ");
+        var words = content
+            .Trim()
+            .ReplaceLineEndings(" ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Take(8);
+
+        var title = string.Join(' ', words);
         return title.Length <= 50 ? title : title[..50].Trim();
+    }
+
+    private static bool ShouldAutoTitle(string? title) =>
+        string.IsNullOrWhiteSpace(title) ||
+        string.Equals(title, "New conversation", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(title, "Untitled conversation", StringComparison.OrdinalIgnoreCase);
+
+    private void UpsertConversation(ConversationSummaryResponse conversation)
+    {
+        var index = conversations.FindIndex(existingConversation => existingConversation.Id == conversation.Id);
+        if (index >= 0)
+        {
+            conversations[index] = conversation;
+        }
+        else
+        {
+            conversations.Insert(0, conversation);
+        }
+
+        conversations.Sort((left, right) => right.UpdatedAt.CompareTo(left.UpdatedAt));
     }
 
     private CancellationToken CreateStreamingToken()

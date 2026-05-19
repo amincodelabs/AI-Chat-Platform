@@ -257,6 +257,44 @@ conversations.MapGet("/{id:guid}", async (
 })
 .RequireRateLimiting(RateLimitPolicyNames.General);
 
+conversations.MapPut("/{id:guid}", async (
+    Guid id,
+    RenameConversationRequest request,
+    ClaimsPrincipal principal,
+    IConversationService conversationService,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryGetUserId(principal, out var userId))
+    {
+        return UnauthorizedError(httpContext);
+    }
+
+    if (!TryValidate(request, out var validationErrors))
+    {
+        return ValidationError(httpContext, validationErrors);
+    }
+
+    if (string.IsNullOrWhiteSpace(request.Title))
+    {
+        return ValidationError(
+            httpContext,
+            new Dictionary<string, string[]>
+            {
+                [nameof(RenameConversationRequest.Title)] = ["Title is required."]
+            });
+    }
+
+    var conversation = await conversationService.RenameConversationAsync(
+        userId,
+        id,
+        request,
+        cancellationToken);
+
+    return conversation is null ? NotFoundError(httpContext, "Conversation was not found.") : Results.Ok(conversation);
+})
+.RequireRateLimiting(RateLimitPolicyNames.General);
+
 conversations.MapDelete("/{id:guid}", async (
     Guid id,
     ClaimsPrincipal principal,

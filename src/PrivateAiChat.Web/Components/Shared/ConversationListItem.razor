@@ -2,10 +2,11 @@
 
 <button class="conversation-item @(IsSelected ? "conversation-item--active" : null)"
         type="button"
+        title="@DisplayTitle"
         @onclick="OnSelected">
     <span class="conversation-item__title">@DisplayTitle</span>
-    <span class="conversation-item__preview">Private chat thread</span>
-    <time datetime="@Conversation.UpdatedAt.ToString("O")">@Conversation.UpdatedAt.ToLocalTime().ToString("MMM d")</time>
+    <span class="conversation-item__preview">@UpdatedDescription</span>
+    <time datetime="@Conversation.UpdatedAt.ToString("O")" title="@Conversation.UpdatedAt.ToLocalTime().ToString("f")">@UpdatedLabel</time>
 </button>
 
 @code {
@@ -21,4 +22,29 @@
     private string DisplayTitle => string.IsNullOrWhiteSpace(Conversation.Title)
         ? "Untitled conversation"
         : Conversation.Title;
+
+    private string UpdatedLabel
+    {
+        get
+        {
+            var updatedAt = Conversation.UpdatedAt.ToLocalTime();
+            var now = DateTimeOffset.Now;
+
+            if (updatedAt.Date == now.Date)
+            {
+                return updatedAt.ToString("h:mm tt");
+            }
+
+            if (updatedAt.Date == now.AddDays(-1).Date)
+            {
+                return "Yesterday";
+            }
+
+            return updatedAt.Year == now.Year
+                ? updatedAt.ToString("MMM d")
+                : updatedAt.ToString("MMM d, yyyy");
+        }
+    }
+
+    private string UpdatedDescription => $"Updated {UpdatedLabel}";
 }
