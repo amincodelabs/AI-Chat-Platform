@@ -1,9 +1,10 @@
 @using PrivateAiChat.Contracts.Conversations
+@inject IJSRuntime JsRuntime
 
 <article class="message-bubble message-bubble--@RoleClass">
     <div class="message-bubble__meta">
         <span>@RoleLabel</span>
-        <time datetime="@Message.CreatedAt.ToString("O")">@Message.CreatedAt.ToLocalTime().ToString("h:mm tt")</time>
+        <time datetime="@Message.CreatedAt.ToString("O")" title="@MessageTimeTitle">@MessageTimeLabel</time>
     </div>
     @if (ShouldRenderMarkdown)
     {
@@ -19,6 +20,10 @@
     [Parameter, EditorRequired]
     public MessageResponse Message { get; set; } = default!;
 
+    private DateTimeOffset formattedCreatedAt;
+    private string? localMessageTimeLabel;
+    private string? localMessageTimeTitle;
+
     private string RoleClass => Message.Role.ToLowerInvariant();
 
     private string RoleLabel => Message.Role switch
@@ -30,4 +35,44 @@
 
     private bool ShouldRenderMarkdown =>
         Message.Role is "Assistant" or "System";
+
+    private string MessageTimeLabel => string.IsNullOrWhiteSpace(localMessageTimeLabel)
+        ? Message.CreatedAt.UtcDateTime.ToString("HH:mm")
+        : localMessageTimeLabel;
+
+    private string MessageTimeTitle => string.IsNullOrWhiteSpace(localMessageTimeTitle)
+        ? Message.CreatedAt.UtcDateTime.ToString("O")
+        : localMessageTimeTitle;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (formattedCreatedAt == Message.CreatedAt)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await JsRuntime.InvokeAsync<BrowserTimeFormatResult>(
+                "privateAiChatTime.format",
+                Message.CreatedAt.ToString("O"),
+                "message");
+
+            formattedCreatedAt = Message.CreatedAt;
+            localMessageTimeLabel = result.Label;
+            localMessageTimeTitle = result.Title;
+            StateHasChanged();
+        }
+        catch
+        {
+            formattedCreatedAt = Message.CreatedAt;
+        }
+    }
+
+    private sealed class BrowserTimeFormatResult
+    {
+        public string? Label { get; set; }
+
+        public string? Title { get; set; }
+    }
 }

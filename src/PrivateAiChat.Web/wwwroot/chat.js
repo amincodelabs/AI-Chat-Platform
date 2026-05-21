@@ -108,10 +108,71 @@ window.privateAiChatMarkdown = {
   }
 };
 
+window.privateAiChatTime = {
+  format: (isoTimestamp, mode) => {
+    const date = new Date(isoTimestamp);
+    if (Number.isNaN(date.getTime())) {
+      return {
+        label: "",
+        title: ""
+      };
+    }
+
+    const title = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "full",
+      timeStyle: "short"
+    }).format(date);
+
+    if (mode === "conversation") {
+      return {
+        label: formatConversationTime(date),
+        title
+      };
+    }
+
+    return {
+      label: new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(date),
+      title
+    };
+  }
+};
+
 function getCodeLanguage(code) {
   const className = code?.className ?? "";
   const match = className.match(/language-([a-z0-9+#.-]+)/i);
   return match ? match[1] : "";
+}
+
+function formatConversationTime(date) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+
+  if (isSameLocalDate(date, now)) {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit"
+    }).format(date);
+  }
+
+  if (isSameLocalDate(date, yesterday)) {
+    return "Yesterday";
+  }
+
+  const options = date.getFullYear() === now.getFullYear()
+    ? { month: "short", day: "numeric" }
+    : { month: "short", day: "numeric", year: "numeric" };
+
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
+function isSameLocalDate(left, right) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
 }
 
 function isSafeHref(href) {
