@@ -17,6 +17,8 @@ public static class StartupConfigurationValidator
 
         ValidateOllama(configuration);
         ValidateRedis(configuration);
+        ValidateCors(configuration, environment);
+        ValidateRequestLimits(configuration);
         ValidateMigrationSafety(configuration, environment);
         ValidateDevelopmentSeed(configuration, environment);
     }
@@ -64,6 +66,49 @@ public static class StartupConfigurationValidator
         {
             throw new InvalidOperationException(
                 "Database:ApplyMigrations is enabled in Production. Set Database:AllowProductionAutoMigrations=true only if this is intentional.");
+        }
+    }
+
+    private static void ValidateCors(IConfiguration configuration, IWebHostEnvironment environment)
+    {
+        var origins = configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? [];
+
+        var originsCsv = configuration["Cors:AllowedOriginsCsv"];
+        if (!string.IsNullOrWhiteSpace(originsCsv))
+        {
+            origins = origins
+                .Concat(originsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .ToArray();
+        }
+
+        foreach (var origin in origins.Where(origin => !string.IsNullOrWhiteSpace(origin)))
+        {
+            if (origin.Contains('*', StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("CORS allowed origins must not contain wildcards.");
+            }
+
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new InvalidOperationException($"CORS allowed origin '{origin}' must be an absolute HTTP or HTTPS origin.");
+            }
+
+            if (environment.IsProduction() && uri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidOperationException("Production CORS allowed origins must use HTTPS.");
+            }
+        }
+    }
+
+    private static void ValidateRequestLimits(IConfiguration configuration)
+    {
+        var maxRequestBodyBytes = configuration.GetValue<long?>("RequestLimits:MaxRequestBodyBytes");
+        if (maxRequestBodyBytes is not null and <= 0)
+        {
+            throw new InvalidOperationException("Configuration value 'RequestLimits:MaxRequestBodyBytes' must be greater than zero.");
         }
     }
 

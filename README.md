@@ -166,10 +166,11 @@ The local Docker setup runs:
 - Redis
 - Ollama
 
-Copy the sample environment file if you want to override local ports or secrets:
+Copy the sample environment file and set a local SQL password before starting:
 
 ```bash
 cp .env.example .env
+# edit PRIVATEAICHAT_SQL_PASSWORD in .env
 ```
 
 Start the stack:
@@ -256,10 +257,14 @@ Production compose keeps only Nginx publicly exposed on port `80`. The API, web 
 Required production values in `.env`:
 
 - `PRIVATEAICHAT_SQL_PASSWORD`
+- `PRIVATEAICHAT_REDIS_CONNECTION`
+- `PRIVATEAICHAT_CORS_ALLOWED_ORIGINS`
+- `PRIVATEAICHAT_MAX_REQUEST_BODY_BYTES`
 - `PRIVATEAICHAT_SQL_PID`
 - `PRIVATEAICHAT_APPLY_MIGRATIONS`
 - `PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS`
 - `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY`
+- `PRIVATEAICHAT_HSTS_ENABLED`
 - `OLLAMA_MODEL`
 
 Deployment notes:
@@ -267,8 +272,62 @@ Deployment notes:
 - `PRIVATEAICHAT_APPLY_MIGRATIONS=false` is the safer default. Run EF Core migrations before first start.
 - If you intentionally want the API to apply migrations in production, set both `PRIVATEAICHAT_APPLY_MIGRATIONS=true` and `PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS=true`.
 - `PRIVATEAICHAT_SQL_PID=Express` is the default in the sample file. Use a licensed edition if your deployment requires it.
-- HTTPS and certificate management are not configured yet. Keep `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY=SameAsRequest` until TLS is added.
+- HTTPS and certificate management are not configured yet. Keep `PRIVATEAICHAT_HSTS_ENABLED=false` until HTTPS is configured.
+- Production cookies default to `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY=Always`; use HTTPS before exposing the app publicly.
 - The API and Web apps can also take production-specific defaults from `appsettings.Production.json`, but secrets should stay in environment variables.
+
+## Security Configuration
+
+Authentication uses ASP.NET Core Identity. Passwords are only passed to Identity APIs for signup/login, and password hashes are never returned by API contracts. Login failures use a generic unauthorized response. Duplicate signup attempts return a generic signup failure message to reduce account enumeration.
+
+Conversation authorization is enforced by user-scoped repository queries. Get, rename, delete, non-streaming send, and streaming send operations all load conversations by both `UserId` and `ConversationId`, so users cannot access another user's conversations through the API.
+
+The reverse proxy and API apply security headers:
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` denying camera, microphone, geolocation, payment, and USB
+- `Content-Security-Policy` with `frame-ancestors 'none'`
+
+HSTS is intentionally opt-in because this repo does not configure HTTPS yet. Enable it only after TLS is active at the public edge:
+
+```text
+PRIVATEAICHAT_HSTS_ENABLED=true
+```
+
+CORS defaults to no cross-origin access. If you deploy API and Web on different origins, set a comma-separated HTTPS origin list:
+
+```text
+PRIVATEAICHAT_CORS_ALLOWED_ORIGINS=https://chat.example.com,https://admin.example.com
+```
+
+Do not use wildcard origins in production. Same-domain deployment behind Nginx usually does not require CORS.
+
+Request body size is limited at both Nginx and Kestrel. The default API body limit is `1048576` bytes:
+
+```text
+PRIVATEAICHAT_MAX_REQUEST_BODY_BYTES=1048576
+```
+
+Message content is limited to 16,000 characters, conversation titles to 200 characters, auth email to 256 characters, and passwords to 128 characters at the contract validation layer.
+
+Assistant Markdown rendering disables raw HTML, removes unsafe links, and marks external links with `rel="noopener noreferrer"`.
+
+Secrets policy:
+
+- Do not commit real `.env` files.
+- Keep SQL passwords in `PRIVATEAICHAT_SQL_PASSWORD`.
+- Keep Redis credentials, if added, in `PRIVATEAICHAT_REDIS_CONNECTION`.
+- Keep production host/origin values in environment variables.
+- Rotate exposed credentials immediately if they are ever committed.
+
+Exposed ports policy:
+
+- Local and production compose expose only Nginx publicly.
+- API, Web, SQL Server, Redis, and Ollama stay on the internal Docker network.
+- API and Web images run as the built-in non-root `app` user; compose also applies `no-new-privileges` where practical.
+- Do not publish SQL Server, Redis, Ollama, API, or Web service ports directly on a production host.
 
 ## Database Migrations
 
@@ -371,5 +430,7 @@ The API validates critical configuration at startup and fails fast with clear er
 - Missing `Ollama:Model`
 - Invalid `Ollama:TimeoutSeconds`
 - Missing `ConnectionStrings:Redis` when `Redis:Required=true`
+- Invalid or wildcard CORS origins
+- Invalid `RequestLimits:MaxRequestBodyBytes`
 - Production auto-migration without `Database:AllowProductionAutoMigrations=true`
 - Development seed data enabled outside Development
