@@ -29,7 +29,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       Authentication__CookieSecurePolicy: SameAsRequest
-      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:?Set PRIVATEAICHAT_SQL_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
       ConnectionStrings__Redis: ${PRIVATEAICHAT_REDIS_CONNECTION:-redis:6379}
       Database__ApplyMigrations: "true"
       Redis__Required: "true"
@@ -98,7 +98,7 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD:?Set PRIVATEAICHAT_SQL_PASSWORD in .env}
+      MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123}
     volumes:
       - sqlserver-data:/var/opt/mssql
     networks:
