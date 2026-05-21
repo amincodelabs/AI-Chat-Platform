@@ -11,6 +11,8 @@ services:
       - "${PRIVATEAICHAT_HTTP_PORT:-80}:80"
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    security_opt:
+      - no-new-privileges:true
     networks:
       - privateaichat
     healthcheck:
@@ -28,12 +30,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      Authentication__CookieSecurePolicy: ${PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY:-SameAsRequest}
-      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
-      ConnectionStrings__Redis: redis:6379
+      Authentication__CookieSecurePolicy: ${PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY:-Always}
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:?Set PRIVATEAICHAT_SQL_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
+      ConnectionStrings__Redis: ${PRIVATEAICHAT_REDIS_CONNECTION:-redis:6379}
       Database__ApplyMigrations: ${PRIVATEAICHAT_APPLY_MIGRATIONS:-false}
       Database__AllowProductionAutoMigrations: ${PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS:-false}
       Redis__Required: "true"
+      Cors__AllowedOriginsCsv: ${PRIVATEAICHAT_CORS_ALLOWED_ORIGINS:-}
+      RequestLimits__MaxRequestBodyBytes: ${PRIVATEAICHAT_MAX_REQUEST_BODY_BYTES:-1048576}
+      Security__Hsts__Enabled: ${PRIVATEAICHAT_HSTS_ENABLED:-false}
       DevelopmentSeed__Enabled: "false"
       Ollama__BaseUrl: http://ollama:11434
       Ollama__Model: ${OLLAMA_MODEL:-llama3.2:1b}
@@ -55,6 +60,8 @@ services:
       - privateaichat
     volumes:
       - data-protection-keys:/home/app/.aspnet/DataProtection-Keys
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
       interval: 15s
@@ -78,6 +85,8 @@ services:
       - privateaichat
     volumes:
       - data-protection-keys:/home/app/.aspnet/DataProtection-Keys
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080'"]
       interval: 15s
@@ -92,7 +101,7 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: ${PRIVATEAICHAT_SQL_PID:-Express}
-      MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD}
+      MSSQL_SA_PASSWORD: ${PRIVATEAICHAT_SQL_PASSWORD:?Set PRIVATEAICHAT_SQL_PASSWORD in .env}
     volumes:
       - sqlserver-data:/var/opt/mssql
     networks:
@@ -108,6 +117,8 @@ services:
     image: redis:7.4-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    security_opt:
+      - no-new-privileges:true
     networks:
       - privateaichat
     healthcheck:

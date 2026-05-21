@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using PrivateAiChat.Api.Middleware;
 using PrivateAiChat.Api.Health;
 using PrivateAiChat.Api.RateLimiting;
@@ -27,8 +28,35 @@ var builder = WebApplication.CreateBuilder(args);
 
 StartupConfigurationValidator.Validate(builder.Configuration, builder.Environment);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = builder.Configuration.GetValue<long?>("RequestLimits:MaxRequestBodyBytes") ?? 1_048_576;
+});
+
 // Add services to the container.
 builder.Services.AddOpenApi();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ConfiguredOrigins", policy =>
+    {
+        var allowedOrigins = GetAllowedOrigins(builder.Configuration);
+
+        if (allowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowCredentials()
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    });
+});
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuthorization();
@@ -111,7 +139,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<RequestCorrelationMiddleware>();
+app.UseCors("ConfiguredOrigins");
 app.UseAuthentication();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ApiExceptionHandlingMiddleware>();
@@ -136,7 +167,7 @@ app.MapPost("/auth/signup", async (
     {
         return ValidationError(httpContext, new Dictionary<string, string[]>
         {
-            [nameof(SignupRequest.Email)] = ["Email is already registered."]
+            [nameof(SignupRequest.Email)] = ["Signup could not be completed."]
         });
     }
 
@@ -339,6 +370,16 @@ conversations.MapPost("/{id:guid}/messages", async (
         return ValidationError(httpContext, validationErrors);
     }
 
+    if (string.IsNullOrWhiteSpace(request.Content))
+    {
+        return ValidationError(
+            httpContext,
+            new Dictionary<string, string[]>
+            {
+                [nameof(AddMessageRequest.Content)] = ["Message content is required."]
+            });
+    }
+
     var messages = await conversationService.AddMessageAsync(
         userId,
         id,
@@ -378,6 +419,21 @@ conversations.MapPost("/{id:guid}/messages/stream", async (
             "One or more validation errors occurred.",
             cancellationToken,
             validationErrors);
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(request.Content))
+    {
+        await WriteErrorAsync(
+            httpContext,
+            StatusCodes.Status400BadRequest,
+            "validation_failed",
+            "One or more validation errors occurred.",
+            cancellationToken,
+            new Dictionary<string, string[]>
+            {
+                [nameof(AddMessageRequest.Content)] = ["Message content is required."]
+            });
         return;
     }
 
@@ -452,6 +508,26 @@ static AuthResponse ToAuthResponse(User user) =>
         user.Id,
         user.Email ?? string.Empty,
         user.DisplayName);
+
+static string[] GetAllowedOrigins(IConfiguration configuration)
+{
+    var origins = configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
+
+    var originsCsv = configuration["Cors:AllowedOriginsCsv"];
+    if (!string.IsNullOrWhiteSpace(originsCsv))
+    {
+        origins = origins
+            .Concat(originsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToArray();
+    }
+
+    return origins
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+}
 
 static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
 {
