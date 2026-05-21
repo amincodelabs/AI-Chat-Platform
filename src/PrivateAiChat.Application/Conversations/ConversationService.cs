@@ -178,36 +178,56 @@ public sealed class ConversationService : IConversationService
             .ToArray();
 
         var assistantContent = new StringBuilder();
+        var assistantMessageSaved = false;
 
-        await foreach (var chunk in _chatCompletionService.StreamAsync(history, cancellationToken)
-            .WithCancellation(cancellationToken))
+        try
         {
-            if (string.IsNullOrEmpty(chunk))
+            await foreach (var chunk in _chatCompletionService.StreamAsync(history, cancellationToken)
+                .WithCancellation(cancellationToken))
             {
-                continue;
+                if (string.IsNullOrEmpty(chunk))
+                {
+                    continue;
+                }
+
+                assistantContent.Append(chunk);
+                yield return new ChatStreamEvent(
+                    ChatStreamEvent.AssistantChunk,
+                    Content: chunk);
             }
 
-            assistantContent.Append(chunk);
+            var finalContent = assistantContent.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(finalContent))
+            {
+                throw new ChatCompletionException("Ollama returned an empty assistant response.");
+            }
+
+            var assistantMessage = new Message(conversation.Id, MessageRole.Assistant, finalContent);
+            conversation.Touch();
+
+            await _repository.AddMessageAsync(assistantMessage, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
+            assistantMessageSaved = true;
+
             yield return new ChatStreamEvent(
-                ChatStreamEvent.AssistantChunk,
-                Content: chunk);
+                ChatStreamEvent.AssistantMessage,
+                Message: ToMessageResponse(assistantMessage));
         }
-
-        var finalContent = assistantContent.ToString().Trim();
-        if (string.IsNullOrWhiteSpace(finalContent))
+        finally
         {
-            throw new ChatCompletionException("Ollama returned an empty assistant response.");
+            if (!assistantMessageSaved && cancellationToken.IsCancellationRequested)
+            {
+                var partialContent = assistantContent.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(partialContent))
+                {
+                    var partialAssistantMessage = new Message(conversation.Id, MessageRole.Assistant, partialContent);
+                    conversation.Touch();
+
+                    await _repository.AddMessageAsync(partialAssistantMessage, CancellationToken.None);
+                    await _repository.SaveChangesAsync(CancellationToken.None);
+                }
+            }
         }
-
-        var assistantMessage = new Message(conversation.Id, MessageRole.Assistant, finalContent);
-        conversation.Touch();
-
-        await _repository.AddMessageAsync(assistantMessage, cancellationToken);
-        await _repository.SaveChangesAsync(cancellationToken);
-
-        yield return new ChatStreamEvent(
-            ChatStreamEvent.AssistantMessage,
-            Message: ToMessageResponse(assistantMessage));
     }
 
     private static ConversationSummaryResponse ToSummaryResponse(Conversation conversation) =>

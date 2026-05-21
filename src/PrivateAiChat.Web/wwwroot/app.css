@@ -253,7 +253,8 @@ textarea {
     padding: 0.9rem 1rem;
 }
 
-.chat-error-banner {
+.chat-error-banner,
+.chat-info-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -268,17 +269,25 @@ textarea {
     animation: message-in 160ms ease both;
 }
 
-.chat-error-banner div {
+.chat-info-banner {
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.chat-error-banner div,
+.chat-info-banner div {
     display: grid;
     gap: 0.18rem;
 }
 
-.chat-error-banner strong {
+.chat-error-banner strong,
+.chat-info-banner strong {
     font-size: 0.9rem;
     font-weight: 820;
 }
 
-.chat-error-banner span {
+.chat-error-banner span,
+.chat-info-banner span {
     color: var(--muted);
     font-size: 0.88rem;
     line-height: 1.45;
@@ -948,6 +957,21 @@ textarea {
 .composer-send-button:disabled {
     background: color-mix(in srgb, var(--text) 20%, transparent);
     color: var(--muted);
+}
+
+.composer-stop-button {
+    background: color-mix(in srgb, var(--danger) 88%, var(--accent));
+    color: white;
+}
+
+.composer-stop-button svg {
+    fill: currentColor;
+    stroke: none;
+}
+
+.composer-stop-button:disabled {
+    background: color-mix(in srgb, var(--danger) 34%, transparent);
+    color: color-mix(in srgb, white 72%, transparent);
 }
 
 .chat-composer .validation-message {
