@@ -171,6 +171,21 @@ else
                             </div>
                         }
 
+                        @if (!string.IsNullOrWhiteSpace(messageNotice))
+                        {
+                            <div class="chat-info-banner" role="status">
+                                <div>
+                                    <strong>Generation stopped</strong>
+                                    <span>@messageNotice</span>
+                                </div>
+                                <button class="icon-only" type="button" @onclick="ClearMessageNotice" aria-label="Dismiss status">
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M18 6 6 18M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        }
+
                         @if (messages.Count == 0)
                         {
                             <section class="chat-empty chat-empty--compact">
@@ -191,16 +206,16 @@ else
                             <article class="message-bubble message-bubble--assistant message-bubble--loading">
                                 <div class="message-bubble__meta">
                                     <span>PrivateAiChat</span>
-                                    <time>@(string.IsNullOrWhiteSpace(streamingAssistantContent) ? "Thinking" : "Streaming")</time>
+                                    <time>@(isStopRequested ? "Stopping" : string.IsNullOrWhiteSpace(streamingAssistantContent) ? "Thinking" : "Streaming")</time>
                                 </div>
                                 @if (string.IsNullOrWhiteSpace(streamingAssistantContent))
                                 {
-                                    <TypingIndicator Label="Thinking" />
+                                    <TypingIndicator Label="@(isStopRequested ? "Stopping" : "Thinking")" />
                                 }
                                 else
                                 {
                                     <MarkdownContent Content="@streamingAssistantContent" />
-                                    <TypingIndicator Label="Streaming" />
+                                    <TypingIndicator Label="@(isStopRequested ? "Stopping" : "Streaming")" />
                                 }
                             </article>
                         }
@@ -214,12 +229,23 @@ else
                                       value="@messageModel.Content"
                                       @oninput="HandleComposerInput"
                                       disabled="@isSendingMessage"></textarea>
-                            <button class="composer-send-button" type="button" @onclick="SendMessageAsync" disabled="@(!CanSendMessage)" aria-label="Send message">
-                                <svg aria-hidden="true" viewBox="0 0 24 24">
-                                    <path d="M12 19V5" />
-                                    <path d="m5 12 7-7 7 7" />
-                                </svg>
-                            </button>
+                            @if (isSendingMessage)
+                            {
+                                <button class="composer-send-button composer-stop-button" type="button" @onclick="StopGenerationAsync" disabled="@isStopRequested" aria-label="Stop generation" title="Stop generation">
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <rect x="7" y="7" width="10" height="10" rx="2" />
+                                    </svg>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="composer-send-button" type="button" @onclick="SendMessageAsync" disabled="@(!CanSendMessage)" aria-label="Send message">
+                                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                                        <path d="M12 19V5" />
+                                        <path d="m5 12 7-7 7 7" />
+                                    </svg>
+                                </button>
+                            }
                         </div>
                     </div>
                 }
@@ -369,12 +395,14 @@ else
     private bool isLoggingOut;
     private bool isComposerBound;
     private bool shouldScrollMessages;
+    private bool isStopRequested;
     private int renderedMessageCount;
     private string streamingAssistantContent = string.Empty;
     private string renameTitle = string.Empty;
     private string? renameError;
     private string? conversationError;
     private string? messageError;
+    private string? messageNotice;
     private CancellationTokenSource? streamingCancellationTokenSource;
     private DotNetObjectReference<Chat>? dotNetReference;
 
@@ -506,6 +534,8 @@ else
 
     private void ClearMessageError() => messageError = null;
 
+    private void ClearMessageNotice() => messageNotice = null;
+
     private async Task SetThemeAsync(string theme)
     {
         await ThemeService.SetThemeAsync(theme);
@@ -564,6 +594,7 @@ else
         messages.Clear();
         streamingAssistantContent = string.Empty;
         messageError = null;
+        messageNotice = null;
         isLoadingConversation = true;
         isDrawerOpen = false;
         isComposerBound = false;
@@ -613,7 +644,9 @@ else
         }
 
         isSendingMessage = true;
+        isStopRequested = false;
         messageError = null;
+        messageNotice = null;
         var content = messageModel.Content.Trim();
         messageModel = new MessageFormModel();
         streamingAssistantContent = string.Empty;
@@ -622,6 +655,7 @@ else
 
         var userMessageReceived = false;
         var assistantMessageReceived = false;
+        var conversationsRefreshed = false;
         var streamingToken = CreateStreamingToken();
 
         try
@@ -641,12 +675,22 @@ else
                 },
                 async chunk =>
                 {
+                    if (isStopRequested)
+                    {
+                        return;
+                    }
+
                     streamingAssistantContent += chunk;
                     shouldScrollMessages = true;
                     await InvokeAsync(StateHasChanged);
                 },
                 async assistantMessage =>
                 {
+                    if (isStopRequested)
+                    {
+                        return;
+                    }
+
                     assistantMessageReceived = true;
                     streamingAssistantContent = string.Empty;
                     messages.Add(assistantMessage);
@@ -658,6 +702,7 @@ else
             if (result.Succeeded)
             {
                 await LoadConversationsAsync();
+                conversationsRefreshed = true;
             }
             else
             {
@@ -675,18 +720,64 @@ else
             {
                 messageModel.Content = content;
             }
+
+            if (isStopRequested)
+            {
+                var partialKept = KeepPartialAssistantMessage();
+                messageNotice = partialKept
+                    ? "Partial response kept in this chat."
+                    : "No assistant text was received before stopping.";
+            }
         }
         finally
         {
-            if (!assistantMessageReceived)
+            if (!assistantMessageReceived && !isStopRequested)
             {
                 streamingAssistantContent = string.Empty;
             }
 
             isSendingMessage = false;
+            isStopRequested = false;
             DisposeStreamingToken();
+            if (userMessageReceived && !conversationsRefreshed)
+            {
+                await LoadConversationsAsync();
+            }
+
             StateHasChanged();
         }
+    }
+
+    private Task StopGenerationAsync()
+    {
+        if (!isSendingMessage || isStopRequested)
+        {
+            return Task.CompletedTask;
+        }
+
+        isStopRequested = true;
+        CancelStreaming();
+        shouldScrollMessages = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private bool KeepPartialAssistantMessage()
+    {
+        var partialContent = streamingAssistantContent.Trim();
+        if (string.IsNullOrWhiteSpace(partialContent))
+        {
+            streamingAssistantContent = string.Empty;
+            return false;
+        }
+
+        messages.Add(new MessageResponse(
+            Guid.NewGuid(),
+            "Assistant",
+            partialContent,
+            DateTimeOffset.Now));
+        streamingAssistantContent = string.Empty;
+        shouldScrollMessages = true;
+        return true;
     }
 
     private async Task DeleteSelectedConversationAsync()

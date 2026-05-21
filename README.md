@@ -65,6 +65,7 @@ Conversation endpoints require an authenticated cookie.
 - `GET /api/conversations/{id}`
 - `DELETE /api/conversations/{id}`
 - `POST /api/conversations/{id}/messages`
+- `POST /api/conversations/{id}/messages/stream`
 
 Example local flow:
 
@@ -99,6 +100,8 @@ The API reads Ollama settings from `src/PrivateAiChat.Api/appsettings*.json`:
   "TimeoutSeconds": 120
 }
 ```
+
+The Blazor chat UI uses the streaming endpoint. While a response is streaming, the composer shows a stop button. Stopping cancels the browser-to-API request, the API request token, and the Ollama HTTP stream. The user message remains saved. If partial assistant text has already streamed, the UI keeps it visible and the backend best-effort saves that partial assistant message. Empty assistant messages are not saved.
 
 Local setup:
 

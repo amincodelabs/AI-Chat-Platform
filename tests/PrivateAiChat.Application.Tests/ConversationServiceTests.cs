@@ -165,6 +165,38 @@ public sealed class ConversationServiceTests
         Assert.Equal(2, repository.SaveChangesCount);
     }
 
+    [Fact]
+    public async Task AddMessageStreamingAsync_Saves_Partial_Assistant_Message_When_Cancelled()
+    {
+        var repository = new FakeConversationRepository();
+        var userId = Guid.NewGuid();
+        var conversation = new Conversation(userId, "Owned");
+        repository.Conversations.Add(conversation);
+        var chatCompletion = new FakeChatCompletionService("Partial", " reply");
+        var service = new ConversationService(repository, chatCompletion);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var streamEvent in service.AddMessageStreamingAsync(
+                userId,
+                conversation.Id,
+                new AddMessageRequest("Hello"),
+                cancellationTokenSource.Token))
+            {
+                if (streamEvent.Type == ChatStreamEvent.AssistantChunk)
+                {
+                    await cancellationTokenSource.CancelAsync();
+                }
+            }
+        });
+
+        Assert.Equal(2, repository.Messages.Count);
+        Assert.Equal(MessageRole.Assistant, repository.Messages.Last().Role);
+        Assert.Equal("Partial", repository.Messages.Last().Content);
+        Assert.Equal(2, repository.SaveChangesCount);
+    }
+
     private sealed class FakeConversationRepository : IConversationRepository
     {
         public List<Conversation> Conversations { get; } = new();
@@ -219,11 +251,11 @@ public sealed class ConversationServiceTests
 
     private sealed class FakeChatCompletionService : IChatCompletionService
     {
-        private readonly string _response;
+        private readonly string[] _responses;
 
-        public FakeChatCompletionService(string response = "Test response")
+        public FakeChatCompletionService(params string[] responses)
         {
-            _response = response;
+            _responses = responses.Length == 0 ? ["Test response"] : responses;
         }
 
         public IReadOnlyCollection<ChatCompletionMessage> Messages { get; private set; } = [];
@@ -233,7 +265,7 @@ public sealed class ConversationServiceTests
             CancellationToken cancellationToken)
         {
             Messages = messages;
-            return Task.FromResult(_response);
+            return Task.FromResult(string.Concat(_responses));
         }
 
         public async IAsyncEnumerable<string> StreamAsync(
@@ -241,8 +273,12 @@ public sealed class ConversationServiceTests
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             Messages = messages;
-            await Task.Yield();
-            yield return _response;
+            foreach (var response in _responses)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Yield();
+                yield return response;
+            }
         }
     }
 }

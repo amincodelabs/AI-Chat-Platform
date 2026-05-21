@@ -159,6 +159,10 @@ public sealed class ConversationApiClient : IDisposable
         {
             return ApiResult.Failure(ToNetworkError(exception));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
     }
 
     public async Task<ApiResult> DeleteConversationAsync(Guid id, CancellationToken cancellationToken)
