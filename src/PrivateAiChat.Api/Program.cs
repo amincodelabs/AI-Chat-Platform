@@ -6,6 +6,7 @@ using System.Threading.RateLimiting;
 using PrivateAiChat.Api.Middleware;
 using PrivateAiChat.Api.Health;
 using PrivateAiChat.Api.RateLimiting;
+using PrivateAiChat.Api.Setup;
 using PrivateAiChat.Application.Chat;
 using PrivateAiChat.Infrastructure.Chat;
 using Microsoft.AspNetCore.DataProtection;
@@ -23,6 +24,8 @@ using PrivateAiChat.Infrastructure.DependencyInjection;
 using PrivateAiChat.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+
+StartupConfigurationValidator.Validate(builder.Configuration, builder.Environment);
 
 // Add services to the container.
 builder.Services.AddOpenApi();
@@ -99,6 +102,8 @@ if (builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await dbContext.Database.MigrateAsync();
 }
+
+await DevelopmentDataSeeder.SeedAsync(app.Services);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
