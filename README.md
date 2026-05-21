@@ -148,6 +148,14 @@ dotnet run --project src/PrivateAiChat.Web --launch-profile https
 
 Open `https://localhost:7135/login` or `https://localhost:7135/signup`.
 
+For local non-Docker development, apply EF Core migrations before using auth or chat:
+
+```bash
+dotnet ef database update \
+  --project src/PrivateAiChat.Infrastructure \
+  --startup-project src/PrivateAiChat.Api
+```
+
 ## Local Docker
 
 The local Docker setup runs:
@@ -173,16 +181,17 @@ docker compose up --build
 Open the Blazor app:
 
 ```text
-http://localhost:5080
+http://localhost
 ```
 
-The API is available for local debugging at:
+Nginx is the only public service in the local compose stack. It proxies:
 
-```text
-http://localhost:5081
-```
+- `/` to the Blazor Web app
+- `/api` to the API
+- `/auth` to the API
+- `/health` to the API health endpoint
 
-SQL Server is bound to localhost only on port `14333` by default. Redis and Ollama are only available inside the Docker network. The API applies EF Core migrations automatically in Docker because `Database__ApplyMigrations=true` is set by `docker-compose.yml`.
+SQL Server, Redis, Ollama, API, and Web stay inside the Docker network. The API applies EF Core migrations automatically in the local Docker stack because `Database__ApplyMigrations=true` is set by `docker-compose.yml`. Production compose defaults this to `false`.
 
 Pull the configured Ollama model into the persistent Ollama volume:
 
@@ -198,6 +207,8 @@ For local Docker, the API receives these container-specific settings from `docke
 ConnectionStrings__DefaultConnection=Server=sqlserver,1433;...
 ConnectionStrings__Redis=redis:6379
 Database__ApplyMigrations=true
+Redis__Required=true
+DevelopmentSeed__Enabled=false
 Ollama__BaseUrl=http://ollama:11434
 Ollama__TimeoutSeconds=120
 RateLimiting__Auth__PermitLimit=5
@@ -247,28 +258,37 @@ Required production values in `.env`:
 - `PRIVATEAICHAT_SQL_PASSWORD`
 - `PRIVATEAICHAT_SQL_PID`
 - `PRIVATEAICHAT_APPLY_MIGRATIONS`
+- `PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS`
 - `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY`
 - `OLLAMA_MODEL`
 
 Deployment notes:
 
-- `PRIVATEAICHAT_APPLY_MIGRATIONS=false` is the safer default. Run EF Core migrations before first start or temporarily set it to `true` for initial provisioning.
+- `PRIVATEAICHAT_APPLY_MIGRATIONS=false` is the safer default. Run EF Core migrations before first start.
+- If you intentionally want the API to apply migrations in production, set both `PRIVATEAICHAT_APPLY_MIGRATIONS=true` and `PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS=true`.
 - `PRIVATEAICHAT_SQL_PID=Express` is the default in the sample file. Use a licensed edition if your deployment requires it.
 - HTTPS and certificate management are not configured yet. Keep `PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY=SameAsRequest` until TLS is added.
 - The API and Web apps can also take production-specific defaults from `appsettings.Production.json`, but secrets should stay in environment variables.
 
-## Migration
+## Database Migrations
 
-Create the initial EF Core migration:
+Current migrations live in `src/PrivateAiChat.Infrastructure/Persistence/Migrations`:
+
+- `InitialCreate`
+- `AddIdentityAuth`
+
+Create a new migration after changing entities or EF Fluent API configuration:
 
 ```bash
-dotnet ef migrations add InitialCreate \
+dotnet ef migrations add DescriptiveMigrationName \
   --project src/PrivateAiChat.Infrastructure \
   --startup-project src/PrivateAiChat.Api \
   --output-dir Persistence/Migrations
 ```
 
-Apply the migration manually:
+Review generated migration files before committing them. They should contain only the intended schema changes.
+
+Apply migrations manually:
 
 ```bash
 dotnet ef database update \
@@ -276,4 +296,80 @@ dotnet ef database update \
   --startup-project src/PrivateAiChat.Api
 ```
 
-After the authentication foundation migration, update the database with the same `dotnet ef database update` command.
+List migrations:
+
+```bash
+dotnet ef migrations list \
+  --project src/PrivateAiChat.Infrastructure \
+  --startup-project src/PrivateAiChat.Api
+```
+
+Check for pending model changes:
+
+```bash
+dotnet ef migrations has-pending-model-changes \
+  --project src/PrivateAiChat.Infrastructure \
+  --startup-project src/PrivateAiChat.Api
+```
+
+Reset a local non-Docker database:
+
+```bash
+dotnet ef database drop \
+  --project src/PrivateAiChat.Infrastructure \
+  --startup-project src/PrivateAiChat.Api
+
+dotnet ef database update \
+  --project src/PrivateAiChat.Infrastructure \
+  --startup-project src/PrivateAiChat.Api
+```
+
+Reset the local Docker database volume:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+This removes all local container data, including SQL Server data and Ollama models.
+
+## Development Seed Data
+
+Development seed data is opt-in and only runs when `ASPNETCORE_ENVIRONMENT=Development`.
+
+Enable it for Docker by setting these values in `.env`:
+
+```text
+PRIVATEAICHAT_SEED_DEV_DATA=true
+PRIVATEAICHAT_SEED_USER_EMAIL=dev.user@privateaichat.local
+PRIVATEAICHAT_SEED_USER_DISPLAY_NAME=Development User
+PRIVATEAICHAT_SEED_USER_PASSWORD=UseALocalDevPassword1
+```
+
+Enable it for non-Docker development with equivalent configuration:
+
+```json
+"DevelopmentSeed": {
+  "Enabled": true,
+  "TestUser": {
+    "Email": "dev.user@privateaichat.local",
+    "DisplayName": "Development User",
+    "Password": "UseALocalDevPassword1"
+  }
+}
+```
+
+When enabled, startup creates the test user if missing and adds sample conversations/messages only if that user has no conversations. It never runs outside Development and does not seed production data.
+
+## Startup Configuration Validation
+
+The API validates critical configuration at startup and fails fast with clear errors for:
+
+- Missing `ConnectionStrings:DefaultConnection`
+- LocalDB connection string used in Production
+- Invalid or missing `Ollama:BaseUrl`
+- Missing `Ollama:Model`
+- Invalid `Ollama:TimeoutSeconds`
+- Missing `ConnectionStrings:Redis` when `Redis:Required=true`
+- Production auto-migration without `Database:AllowProductionAutoMigrations=true`
+- Development seed data enabled outside Development

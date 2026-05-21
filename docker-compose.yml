@@ -30,6 +30,11 @@ services:
       ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:-Local_dev_only_ChangeMe_123};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
       ConnectionStrings__Redis: redis:6379
       Database__ApplyMigrations: "true"
+      Redis__Required: "true"
+      DevelopmentSeed__Enabled: ${PRIVATEAICHAT_SEED_DEV_DATA:-false}
+      DevelopmentSeed__TestUser__Email: ${PRIVATEAICHAT_SEED_USER_EMAIL:-dev.user@privateaichat.local}
+      DevelopmentSeed__TestUser__DisplayName: ${PRIVATEAICHAT_SEED_USER_DISPLAY_NAME:-Development User}
+      DevelopmentSeed__TestUser__Password: ${PRIVATEAICHAT_SEED_USER_PASSWORD:-}
       Ollama__BaseUrl: http://ollama:11434
       Ollama__Model: ${OLLAMA_MODEL:-llama3.2:1b}
       Ollama__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-120}
