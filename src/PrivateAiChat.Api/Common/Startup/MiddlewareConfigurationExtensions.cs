@@ -22,6 +22,11 @@ public static class MiddlewareConfigurationExtensions
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/openapi/v1.json", "PrivateAiChat API v1");
+                options.RoutePrefix = "swagger";
+            });
         }
 
         app.UseForwardedHeaders();
