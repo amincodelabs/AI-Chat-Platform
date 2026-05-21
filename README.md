@@ -169,11 +169,10 @@ The local Docker setup runs:
 - Redis
 - Ollama
 
-Copy the sample environment file and set a local SQL password before starting:
+The local Docker setup includes a development-only SQL password fallback, so it can run without a `.env` file. To override local settings, copy the sample environment file first:
 
 ```bash
 cp .env.example .env
-# edit PRIVATEAICHAT_SQL_PASSWORD in .env
 ```
 
 Start the stack:
