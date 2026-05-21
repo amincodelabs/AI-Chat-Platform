@@ -43,7 +43,14 @@ window.privateAiChatComposer = {
     }
 
     if (behavior === "auto") {
-      element.scrollTop = element.scrollHeight;
+      const previousScrollBehavior = element.style.scrollBehavior;
+      element.style.scrollBehavior = "auto";
+      element.getBoundingClientRect();
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior: "auto"
+      });
+      element.style.scrollBehavior = previousScrollBehavior;
       return;
     }
 
