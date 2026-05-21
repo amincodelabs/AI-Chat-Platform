@@ -110,9 +110,18 @@ public sealed class ConversationApiClient : IDisposable
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var reader = new StreamReader(stream);
 
-            while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+            while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var line = await reader.ReadLineAsync(cancellationToken);
+                if (line is null)
+                {
+                    break;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: ", StringComparison.Ordinal))
                 {
                     continue;
@@ -142,6 +151,7 @@ public sealed class ConversationApiClient : IDisposable
                         break;
                     case ChatStreamEvent.AssistantChunk when streamEvent.Content is not null:
                         await onAssistantChunk(streamEvent.Content);
+                        cancellationToken.ThrowIfCancellationRequested();
                         break;
                     case ChatStreamEvent.AssistantMessage when streamEvent.Message is not null:
                         await onAssistantMessage(streamEvent.Message);
