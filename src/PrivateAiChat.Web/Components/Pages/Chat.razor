@@ -155,7 +155,10 @@ else
                 }
                 else
                 {
-                    <div id="chat-message-list" class="chat-panel__messages" aria-live="polite">
+                    <div id="chat-message-list"
+                         class="chat-panel__messages @(isPreparingConversationViewport ? "is-preparing" : null)"
+                         aria-live="polite"
+                         aria-busy="@isPreparingConversationViewport">
                         @if (!string.IsNullOrWhiteSpace(messageError))
                         {
                             <div class="chat-error-banner" role="alert">
@@ -218,6 +221,13 @@ else
                                     <TypingIndicator Label="@(isStopRequested ? "Stopping" : "Streaming")" />
                                 }
                             </article>
+                        }
+
+                        @if (isPreparingConversationViewport)
+                        {
+                            <div class="chat-panel__scroll-prep" role="status">
+                                <TypingIndicator Label="Preparing latest messages" />
+                            </div>
                         }
                     </div>
 
@@ -395,6 +405,8 @@ else
     private bool isLoggingOut;
     private bool isComposerBound;
     private bool shouldScrollMessages;
+    private bool shouldJumpToMessageEnd;
+    private bool isPreparingConversationViewport;
     private bool isStopRequested;
     private int renderedMessageCount;
     private string streamingAssistantContent = string.Empty;
@@ -467,14 +479,23 @@ else
         {
             try
             {
-                await JsRuntime.InvokeVoidAsync("privateAiChatComposer.scrollToBottom", "chat-message-list");
+                var scrollBehavior = shouldJumpToMessageEnd ? "auto" : "smooth";
+                await JsRuntime.InvokeVoidAsync("privateAiChatComposer.scrollToBottom", "chat-message-list", scrollBehavior);
                 await JsRuntime.InvokeVoidAsync("privateAiChatComposer.resize", "chat-message-input");
                 renderedMessageCount = messages.Count;
                 shouldScrollMessages = false;
+                shouldJumpToMessageEnd = false;
+
+                if (isPreparingConversationViewport)
+                {
+                    isPreparingConversationViewport = false;
+                    await InvokeAsync(StateHasChanged);
+                }
             }
             catch
             {
                 shouldScrollMessages = true;
+                isPreparingConversationViewport = false;
             }
         }
     }
@@ -598,6 +619,9 @@ else
         isLoadingConversation = true;
         isDrawerOpen = false;
         isComposerBound = false;
+        renderedMessageCount = 0;
+        shouldJumpToMessageEnd = true;
+        isPreparingConversationViewport = false;
 
         var result = await ConversationApiClient.GetConversationAsync(conversationId, cancellationTokenSource.Token);
         if (result.Succeeded && result.Value is not null)
@@ -605,6 +629,7 @@ else
             selectedConversation = result.Value;
             messages.AddRange(result.Value.Messages.OrderBy(message => message.CreatedAt));
             shouldScrollMessages = true;
+            isPreparingConversationViewport = messages.Count > 0;
         }
         else
         {
