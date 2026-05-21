@@ -36,15 +36,20 @@ window.privateAiChatComposer = {
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 168)}px`;
   },
-  scrollToBottom: (elementId) => {
+  scrollToBottom: (elementId, behavior) => {
     const element = document.getElementById(elementId);
     if (!element) {
       return;
     }
 
+    if (behavior === "auto") {
+      element.scrollTop = element.scrollHeight;
+      return;
+    }
+
     element.scrollTo({
       top: element.scrollHeight,
-      behavior: "smooth"
+      behavior: behavior || "smooth"
     });
   }
 };
