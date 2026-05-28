@@ -169,10 +169,11 @@ The local Docker setup runs:
 - Redis
 - Ollama
 
-The local Docker setup includes a development-only SQL password fallback, so it can run without a `.env` file. To override local settings, copy the sample environment file first:
+Local Docker requires a `.env` file for secret values. Copy the sample file and replace placeholder passwords before starting:
 
 ```bash
 cp .env.example .env
+# edit PRIVATEAICHAT_SQL_PASSWORD and PRIVATEAICHAT_REDIS_PASSWORD
 ```
 
 Start the stack:
@@ -208,7 +209,7 @@ For local Docker, the API receives these container-specific settings from `docke
 
 ```text
 ConnectionStrings__DefaultConnection=Server=sqlserver,1433;...
-ConnectionStrings__Redis=redis:6379
+ConnectionStrings__Redis=redis:6379,password=${PRIVATEAICHAT_REDIS_PASSWORD},abortConnect=false
 Database__ApplyMigrations=true
 Redis__Required=true
 DevelopmentSeed__Enabled=false
@@ -259,7 +260,7 @@ Production compose keeps only Nginx publicly exposed on port `80`. The API, web 
 Required production values in `.env`:
 
 - `PRIVATEAICHAT_SQL_PASSWORD`
-- `PRIVATEAICHAT_REDIS_CONNECTION`
+- `PRIVATEAICHAT_REDIS_PASSWORD`
 - `PRIVATEAICHAT_CORS_ALLOWED_ORIGINS`
 - `PRIVATEAICHAT_MAX_REQUEST_BODY_BYTES`
 - `PRIVATEAICHAT_SQL_PID`
@@ -320,7 +321,7 @@ Secrets policy:
 
 - Do not commit real `.env` files.
 - Keep SQL passwords in `PRIVATEAICHAT_SQL_PASSWORD`.
-- Keep Redis credentials, if added, in `PRIVATEAICHAT_REDIS_CONNECTION`.
+- Keep Redis credentials in `PRIVATEAICHAT_REDIS_PASSWORD`.
 - Keep production host/origin values in environment variables.
 - Rotate exposed credentials immediately if they are ever committed.
 
@@ -398,26 +399,22 @@ This removes all local container data, including SQL Server data and Ollama mode
 
 Development seed data is opt-in and only runs when `ASPNETCORE_ENVIRONMENT=Development`.
 
-Enable it for Docker by setting these values in `.env`:
+Enable it for Docker by setting these values in `.env`. Use a local-only password that is not committed:
 
 ```text
 PRIVATEAICHAT_SEED_DEV_DATA=true
 PRIVATEAICHAT_SEED_USER_EMAIL=dev.user@privateaichat.local
 PRIVATEAICHAT_SEED_USER_DISPLAY_NAME=Development User
-PRIVATEAICHAT_SEED_USER_PASSWORD=UseALocalDevPassword1
+PRIVATEAICHAT_SEED_USER_PASSWORD=<your-local-dev-password>
 ```
 
-Enable it for non-Docker development with equivalent configuration:
+Enable it for non-Docker development with .NET User Secrets instead of committing local appsettings files:
 
-```json
-"DevelopmentSeed": {
-  "Enabled": true,
-  "TestUser": {
-    "Email": "dev.user@privateaichat.local",
-    "DisplayName": "Development User",
-    "Password": "UseALocalDevPassword1"
-  }
-}
+```bash
+dotnet user-secrets set "DevelopmentSeed:Enabled" "true" --project src/PrivateAiChat.Api
+dotnet user-secrets set "DevelopmentSeed:TestUser:Email" "dev.user@privateaichat.local" --project src/PrivateAiChat.Api
+dotnet user-secrets set "DevelopmentSeed:TestUser:DisplayName" "Development User" --project src/PrivateAiChat.Api
+dotnet user-secrets set "DevelopmentSeed:TestUser:Password" "<your-local-dev-password>" --project src/PrivateAiChat.Api
 ```
 
 When enabled, startup creates the test user if missing and adds sample conversations/messages only if that user has no conversations. It never runs outside Development and does not seed production data.
@@ -436,3 +433,33 @@ The API validates critical configuration at startup and fails fast with clear er
 - Invalid `RequestLimits:MaxRequestBodyBytes`
 - Production auto-migration without `Database:AllowProductionAutoMigrations=true`
 - Development seed data enabled outside Development
+
+## Secrets and Secret Scanning
+
+Never commit real `.env` files, local appsettings overrides, certificates, private keys, API keys, tokens, or production credentials. This repo keeps only `.env.example` with placeholder values.
+
+Create local Docker secrets from the example file:
+
+```bash
+cp .env.example .env
+# replace all ChangeMe_* placeholder values before running Docker
+```
+
+For local non-Docker development, prefer .NET User Secrets:
+
+```bash
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<local-sql-connection-string>" --project src/PrivateAiChat.Api
+dotnet user-secrets set "ConnectionStrings:Redis" "<local-redis-connection-string>" --project src/PrivateAiChat.Api
+```
+
+For production, use environment variables or your deployment platform's secret manager. Do not store production secrets in `appsettings*.json`, compose files, or scripts.
+
+Run a local secret scan before pushing:
+
+```bash
+gitleaks detect --source . --redact
+```
+
+If GitHub secret scanning is available for this public repository, keep it enabled.
+
+Security note: password-like values were previously committed for local Docker/dev examples. Treat any copied value as exposed and rotate SQL Server, Redis, and development seed credentials in any environment where those values were used.

@@ -1,6 +1,18 @@
 .env
 .env.*
 !.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+*.pem
+*.key
+*.pfx
+*.crt
+*.cert
+id_rsa
+id_ed25519
+docker-compose.override.yml
+docker-compose.*.override.yml
 
 bin/
 obj/

@@ -32,7 +32,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Authentication__CookieSecurePolicy: ${PRIVATEAICHAT_AUTH_COOKIE_SECURE_POLICY:-Always}
       ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=PrivateAiChat;User Id=sa;Password=${PRIVATEAICHAT_SQL_PASSWORD:?Set PRIVATEAICHAT_SQL_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true
-      ConnectionStrings__Redis: ${PRIVATEAICHAT_REDIS_CONNECTION:-redis:6379}
+      ConnectionStrings__Redis: redis:6379,password=${PRIVATEAICHAT_REDIS_PASSWORD:?Set PRIVATEAICHAT_REDIS_PASSWORD in .env},abortConnect=false
       Database__ApplyMigrations: ${PRIVATEAICHAT_APPLY_MIGRATIONS:-false}
       Database__AllowProductionAutoMigrations: ${PRIVATEAICHAT_ALLOW_PRODUCTION_AUTO_MIGRATIONS:-false}
       Redis__Required: "true"
@@ -116,13 +116,15 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${PRIVATEAICHAT_REDIS_PASSWORD:?Set PRIVATEAICHAT_REDIS_PASSWORD in .env}"]
+    environment:
+      PRIVATEAICHAT_REDIS_PASSWORD: ${PRIVATEAICHAT_REDIS_PASSWORD:?Set PRIVATEAICHAT_REDIS_PASSWORD in .env}
     security_opt:
       - no-new-privileges:true
     networks:
       - privateaichat
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${PRIVATEAICHAT_REDIS_PASSWORD}\" ping"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/PrivateAiChat.Api.props" />
-</Project>
