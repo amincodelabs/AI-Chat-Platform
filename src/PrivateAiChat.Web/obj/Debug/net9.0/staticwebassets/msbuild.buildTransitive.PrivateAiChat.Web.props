@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="../buildMultiTargeting/PrivateAiChat.Web.props" />
-</Project>

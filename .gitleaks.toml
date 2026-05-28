@@ -1,0 +1,10 @@
+title = "PrivateAiChat gitleaks configuration"
+
+[allowlist]
+description = "Allow documented placeholder values only."
+regexes = [
+  '''ChangeMe_[A-Za-z0-9_!]+''',
+  '''change_me_[A-Za-z0-9_]+''',
+  '''dev\.user@privateaichat\.local''',
+  '''user@example\.com'''
+]
